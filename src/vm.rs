@@ -1,17 +1,33 @@
 use std::collections::HashMap;
 use std::io::prelude::*;
-use std::process::{Command, Stdio};
-
+use std::process::{exit, Command, Stdio};
 
 #[derive(Debug, Clone)]
 enum Value {
     Number(i32),
     Float(f64),
     Instruction(usize),
+    Identifier(String),
+    AssociativeIdentifier(String, String),
     StringLiteral(String),
     RegexPattern(String),
     Bool(bool),
     Commmand(String, Vec<String>),
+    ArrayLiteral(HashMap<String, Box<Value>>),
+}
+
+macro_rules! exit_err {
+    ($reason:expr) => {
+        eprintln!(expr);
+        eprintln!("This caused RustyAWK to exit with status 1");
+        exit(1);
+    },
+
+    ($reason:expr,*) {
+        eprintln!(expr, *);
+        eprintln!("This caused RustyAWK to exit with status 1");
+        exit(1);
+    }
 }
 
 impl Value {
@@ -23,6 +39,11 @@ impl Value {
                 let mut concatenated = a.clone();
                 concatenated.push_str(b);
                 Some(Value::StringLiteral(concatenated))
+            }
+            (Value::ArrayLiteral(ref a), Value::ArrayLiteral(ref b)) => {
+                let mut concatenated = a.clone();
+                concatenated.extend(b);
+                Some(Value::ArrayLiteral(concatenated))
             }
             _ => None,
         }
@@ -233,32 +254,34 @@ impl Value {
         if Self::Instruction(instruction) = self {
             instruction
         } else {
-            eprintln!("Value is not an instruction");
+            panic!("Value is not an instruction");
         }
     }
 
     fn exec_command(self) -> (String, i32) {
         if let Self::Command(command, args) = self {
-            let output = Command::new(cmd)
-                            .args(args)
-                            .stdout(Stdio::piped())
-                            .spawn();
+            let output = Command::new(cmd).args(args).stdout(Stdio::piped()).spawn();
 
             match output {
-                Ok (mut child) => {
+                Ok(mut child) => {
                     let mut buffer = String::new();
-                    child.stdout.take().unwrap().read_to_string(&mut buffer).unwrap();
+                    child
+                        .stdout
+                        .take()
+                        .unwrap()
+                        .read_to_string(&mut buffer)
+                        .unwrap();
 
                     let status = child.wait().unwrap();
 
                     (buffer, status)
-                },
-                Err (e) => {
-                    eprintln!("Error: {}", e);
+                }
+                Err(e) => {
+                    exit_err!("Unexpected error: {}", e);
                 }
             }
         } else {
-            eprintln!("Value is not a command");
+            panic!("Value is not a command");
         }
     }
 }
@@ -273,8 +296,8 @@ enum Instruction {
     Return,
     LoadVariable,
     StoreVariable,
-    LoadArray,
-    StoreArray,
+    LoadAssociativeArrayValue,
+    StoreAssociativeArrayValue,
     Pop,
     Duplicate,
     Swap,
@@ -322,6 +345,7 @@ struct StackVM {
     program: Vec<Instruction>,
     environ: HashMap<String, Value>,
     pc: usize,
+    sp: usize,
 }
 
 impl StackVM {
@@ -330,6 +354,7 @@ impl StackVM {
             stack: Vec::new(),
             program,
             pc: 0,
+            sp: 0,
             environ: HashMap::new(),
         }
     }
@@ -337,7 +362,7 @@ impl StackVM {
     fn exec_jump_if_false(&mut self) {
         if let Some(Value::Instruction(target)) = self.stack.pop() {
             if let Some(Value::Bool(false)) = self.stack.pop() {
-                self.pc = target as usize;
+                self.sp = target as usize;
             }
         }
     }
@@ -345,19 +370,19 @@ impl StackVM {
     fn exec_jump_if_true(&mut self) {
         if let Some(Value::Instruction(target)) = self.stack.pop() {
             if let Some(Value::Bool(true)) = self.stack.pop() {
-                self.pc = target as usize;
+                self.sp = target as usize;
             }
         }
     }
 
     fn exec_jump(&mut self) {
         if let Some(Value::Instruction(target)) = self.stack.pop() {
-            self.pc = target as usize;
+            self.sp = target as usize;
         }
     }
 
     fn exec_return(&mut self) {
-        self.pc = self
+        self.sp = self
             .stack
             .pop()
             .and_then(|val| val.as_instruction())
@@ -368,7 +393,77 @@ impl StackVM {
         let command = self.stack.pop();
         let (result, status) = command.exec_command();
 
-        self.environ.entry("STAT").or_insert(status);
+        self.environ.insert("STATUS", status);
         self.stack.push(Value::String(result));
+    }
+
+    fn exec_load_variable(&mut self) {
+        if let Some(Value::Identifier(variable_name)) = self.stack.pop() {
+            if let Some(value) = self.environ.get(&variable_name) {
+                self.stack.push(value.clone());
+            } else {
+                exit_err!("Error: variable `{}` not found", variable_name);
+                exit();
+            }
+        } else {
+            panic!("Invalid operand type for LoadVariable");
+        }
+    }
+
+    fn execute_store_variable(&mut self) {
+        if self.stack.len() < 2 {
+            panic!("Not enough operands on the stack for STORE_VARIABLE");
+        }
+
+        if let (Some(Value::Identifier(variable_name)), Some(value_to_store)) =
+            (self.stack.pop(), self.stack.pop())
+        {
+            self.environ.insert(variable_name, value_to_store);
+        } else {
+            panic!("Invalid operand types for STORE_VARIABLE");
+        }
+    }
+
+    fn execute_load_associative_array_value(&mut self) {
+        if self.stack.is_empty() {
+            panic!("Not enough operands on the stack for LOAD_ASSOCIATIVE_ARRAY_VALUE");
+        }
+
+        if let Some(Value::AssociativeIdentifier(ref array_id, ref idx)) = self.stack.pop() {
+            let mut key = array_id.clone();
+            key.push_str(idx);
+
+            if let Some(value) = self.environ.get(&key) {
+                self.stack.push(value.clone());
+            } else {
+                exit_err!(
+                    "Error: either array `{}` or index `{}` don't exit, array_id",
+                    idx
+                );
+            }
+        } else {
+            panic!("Invalid operand type for LOAD_ASSOCIATIVE_ARRAY_VALUE");
+        }
+
+        self.sp += 1;
+    }
+
+    fn execute_store_associative_array_value(&mut self) {
+        if self.stack.len() < 2 {
+            panic!("Not enough operands on the stack for STORE_ASSOCIATIVE_ARRAY_VALUE");
+        }
+
+        if let (Some(Value::AssociativeIdentifier(ref array_id, ref idx)), value_to_store) =
+            (self.stack.pop(), self.stack.pop())
+        {
+            let mut key = array_id.clone();
+            key.push_str(idx);
+
+            self.environ.insert(key.clone(), value_to_store);
+
+        } else {
+            panic!("Invalid operand types for STORE_ASSOCIATIVE_ARRAY_VALUE");
+        }
+
     }
 }
