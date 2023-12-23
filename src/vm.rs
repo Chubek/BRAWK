@@ -1,4 +1,7 @@
 use std::collections::HashMap;
+use std::io::prelude::*;
+use std::process::{Command, Stdio};
+
 
 #[derive(Debug, Clone)]
 enum Value {
@@ -8,6 +11,7 @@ enum Value {
     StringLiteral(String),
     RegexPattern(String),
     Bool(bool),
+    Commmand(String, Vec<String>),
 }
 
 impl Value {
@@ -229,7 +233,32 @@ impl Value {
         if Self::Instruction(instruction) = self {
             instruction
         } else {
-            panic!("Value is not an instruction");
+            eprintln!("Value is not an instruction");
+        }
+    }
+
+    fn exec_command(self) -> (String, i32) {
+        if let Self::Command(command, args) = self {
+            let output = Command::new(cmd)
+                            .args(args)
+                            .stdout(Stdio::piped())
+                            .spawn();
+
+            match output {
+                Ok (mut child) => {
+                    let mut buffer = String::new();
+                    child.stdout.take().unwrap().read_to_string(&mut buffer).unwrap();
+
+                    let status = child.wait().unwrap();
+
+                    (buffer, status)
+                },
+                Err (e) => {
+                    eprintln!("Error: {}", e);
+                }
+            }
+        } else {
+            eprintln!("Value is not a command");
         }
     }
 }
@@ -244,6 +273,8 @@ enum Instruction {
     Return,
     LoadVariable,
     StoreVariable,
+    LoadArray,
+    StoreArray,
     Pop,
     Duplicate,
     Swap,
@@ -275,9 +306,12 @@ enum Instruction {
     BitwiseNot,
     Print,
     Printf,
+    OutputToFile,
+    AppendToFile,
     Getline,
-    ExecShell,
-    RedirOut,
+    OpenPipe,
+    System,
+    CloseStream,
     AppendOut,
     RegexMatch,
 }
@@ -300,7 +334,7 @@ impl StackVM {
         }
     }
 
-    fn jump_if_false(&mut self) {
+    fn exec_jump_if_false(&mut self) {
         if let Some(Value::Instruction(target)) = self.stack.pop() {
             if let Some(Value::Bool(false)) = self.stack.pop() {
                 self.pc = target as usize;
@@ -308,7 +342,7 @@ impl StackVM {
         }
     }
 
-    fn jump_if_true(&mut self) {
+    fn exec_jump_if_true(&mut self) {
         if let Some(Value::Instruction(target)) = self.stack.pop() {
             if let Some(Value::Bool(true)) = self.stack.pop() {
                 self.pc = target as usize;
@@ -316,17 +350,25 @@ impl StackVM {
         }
     }
 
-    fn jump(&mut self) {
+    fn exec_jump(&mut self) {
         if let Some(Value::Instruction(target)) = self.stack.pop() {
             self.pc = target as usize;
         }
     }
 
-    fn return_instruction(&mut self) {
+    fn exec_return(&mut self) {
         self.pc = self
             .stack
             .pop()
             .and_then(|val| val.as_instruction())
             .unwrap_or(0) as usize;
+    }
+
+    fn exec_open_pipe(&mut self) {
+        let command = self.stack.pop();
+        let (result, status) = command.exec_command();
+
+        self.environ.entry("STAT").or_insert(status);
+        self.stack.push(Value::String(result));
     }
 }
