@@ -298,7 +298,6 @@ enum Instruction {
     StoreVariable,
     LoadAssociativeArrayValue,
     StoreAssociativeArrayValue,
-    Pop,
     Duplicate,
     Swap,
     Add,
@@ -460,10 +459,28 @@ impl StackVM {
             key.push_str(idx);
 
             self.environ.insert(key.clone(), value_to_store);
-
         } else {
             panic!("Invalid operand types for STORE_ASSOCIATIVE_ARRAY_VALUE");
         }
+    }
 
+    fn exec_swap(&mut self) {
+        if self.stack.len() < 2 {
+            panic!("Not enough operands on the stack for SWAP");
+        }
+
+        let top = self.stack.pop().unwrap();
+        let second = self.stack.pop().unwrap();
+
+        self.stack.push(top);
+        self.stack.push(second);
+    }
+
+    fn exec_duplicate(&mut self) {
+        if let Some(top) = self.stack.last().cloned() {
+            self.stack.push(top);
+        } else {
+            panic!("Cannot duplicate an empty stack");
+        }
     }
 }
