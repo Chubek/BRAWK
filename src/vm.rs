@@ -4,8 +4,10 @@ use std::collections::HashMap;
 enum Value {
     Number(i32),
     Float(f64),
+    Instruction(usize),
     StringLiteral(String),
     RegexPattern(String),
+    Bool(bool),
 }
 
 impl Value {
@@ -222,6 +224,14 @@ impl Value {
             _ => None,
         }
     }
+
+    fn as_instruction(self) -> usize {
+        if Self::Instruction(instruction) = self {
+            instruction
+        } else {
+            panic!("Value is not an instruction");
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -288,5 +298,35 @@ impl StackVM {
             pc: 0,
             environ: HashMap::new(),
         }
+    }
+
+    fn jump_if_false(&mut self) {
+        if let Some(Value::Instruction(target)) = self.stack.pop() {
+            if let Some(Value::Bool(false)) = self.stack.pop() {
+                self.pc = target as usize;
+            }
+        }
+    }
+
+    fn jump_if_true(&mut self) {
+        if let Some(Value::Instruction(target)) = self.stack.pop() {
+            if let Some(Value::Bool(true)) = self.stack.pop() {
+                self.pc = target as usize;
+            }
+        }
+    }
+
+    fn jump(&mut self) {
+        if let Some(Value::Instruction(target)) = self.stack.pop() {
+            self.pc = target as usize;
+        }
+    }
+
+    fn return_instruction(&mut self) {
+        self.pc = self
+            .stack
+            .pop()
+            .and_then(|val| val.as_instruction())
+            .unwrap_or(0) as usize;
     }
 }
