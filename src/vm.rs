@@ -1,7 +1,7 @@
 use std::collections::HashMap;
+use std::fs::{File, OpenOptions};
 use std::io::prelude::*;
 use std::io::{BufRead, BufReader, BufWrite, BufWriter};
-use std::fs::{OpenOptions, File};
 use std::process::{exit, Command, Stdio};
 
 #[derive(Debug, Clone)]
@@ -19,6 +19,9 @@ enum Value {
     FilePath(String),
     BufferedReader(BufReader),
     BufferedWriter(BufWriter),
+    Commmand(String),
+    PrintExpr(Vec<Box<Value>>),
+    PrintFormattedExpr(String, Vec<Box<Value>>),
 }
 
 macro_rules! exit_err {
@@ -289,24 +292,20 @@ impl Value {
             panic!("Value is not a command");
         }
     }
-    
+
     pub fn open_file_for_read(self) -> Value {
         if let Self::FilePath(file_path) = self {
-            let file = OpenOptions::new()
-                 .open(file_path);
+            let file = OpenOptions::new().open(file_path);
             let mut buff_reader = BufReader::new(file);
             Self::BufferedReader(buff_reader)
-         } else {
+        } else {
             panic!("Value is not a file path");
-         }
-   }
+        }
+    }
 
     pub fn open_file_for_write(self) -> Value {
         if let Self::FilePath(file_path) = self {
-            let file = OpenOptions::new()
-                        .create(true)
-                        .append(true)
-                        .open(file_path);
+            let file = OpenOptions::new().create(true).append(true).open(file_path);
             let mut buff_writer = BufWriter::new(file);
             Self::BufferedWriter(buff_writer)
         }
@@ -314,9 +313,7 @@ impl Value {
 
     pub fn read_line_from_file(self) -> Value {
         if let Self::BufferedReader(buff_reader) = self {
-            let read_line = buff_reader
-                .read_line()
-                .unwrap_or(String::new());
+            let read_line = buff_reader.read_line().unwrap_or(String::new());
             Value::String(read_line)
         } else {
             panic("Value is not a buffered reader");
@@ -325,9 +322,7 @@ impl Value {
 
     pub fn read_all_from_file(self) -> Value {
         if let Self::BufferedReader(buff_reader) = self {
-            let read_text = buff_reader
-                .read_all()
-                .unwrap_or(String::new());
+            let read_text = buff_reader.read_all().unwrap_or(String::new());
             Value::String(read_text)
         } else {
             panic!("Value is not a buffered reader");
@@ -339,6 +334,172 @@ impl Value {
             buff_writer.write_all(text);
         } else {
             panic!("Value is not a buffered writer");
+        }
+    }
+
+    pub fn awk_match(&self, pattern: &Value) -> Option<bool> {
+        match (self, pattern) {
+            (Value::StringLiteral(input), Value::StringLiteral(regex_str)) => {
+                let regex = Regex::new(regex_str).ok()?;
+                Some(regex.is_match(input))
+            }
+            _ => None,
+        }
+    }
+
+    pub fn awk_not_match(&self, pattern: &Value) -> Option<bool> {
+        Some(!self.awk_match(pattern).unwrap_or(false))
+    }
+
+    pub fn awk_substitute(&mut self, regex: &Value, replacement: &Value) -> Option<()> {
+        match (self, regex, replacement) {
+            (
+                Value::StringLiteral(input),
+                Value::StringLiteral(regex_str),
+                Value::StringLiteral(replacement_str),
+            ) => {
+                let regex = Regex::new(regex_str).ok()?;
+                *input = regex.replace_all(input, replacement_str).to_string();
+                Some(())
+            }
+            _ => None,
+        }
+    }
+
+    pub fn awk_gsub(&mut self, regex: &Value, replacement: &Value) -> Option<()> {
+        match (self, regex, replacement) {
+            (
+                Value::StringLiteral(input),
+                Value::StringLiteral(regex_str),
+                Value::StringLiteral(replacement_str),
+            ) => {
+                let regex = Regex::new(regex_str).ok()?;
+                *input = regex.replace_all(input, replacement_str).to_string();
+                Some(())
+            }
+            _ => None,
+        }
+    }
+
+    pub fn awk_split(&self, regex: &Value, array: &Value) -> Option<i32> {
+        match (self, regex, array) {
+            (
+                Value::StringLiteral(input),
+                Value::StringLiteral(regex_str),
+                Value::ArrayLiteral(array_map),
+            ) => {
+                let regex = Regex::new(regex_str).ok()?;
+                let split_values: Vec<_> = regex.split(input).map(|s| s.to_string()).collect();
+
+                // Update array_map with split values
+                for (index, value) in split_values.into_iter().enumerate() {
+                    array_map.insert(index.to_string(), Box::new(Value::StringLiteral(value)));
+                }
+
+                Some(split_values.len() as i32)
+            }
+            _ => None,
+        }
+    }
+
+    pub fn awk_match_array(&self, regex: &Value, array: &Value) -> Option<bool> {
+        match (self, regex, array) {
+            (
+                Value::StringLiteral(input),
+                Value::StringLiteral(regex_str),
+                Value::ArrayLiteral(array_map),
+            ) => {
+                let regex = Regex::new(regex_str).ok()?;
+                let matches: Vec<_> = array_map
+                    .values()
+                    .filter_map(|value| match value {
+                        Value::StringLiteral(s) => Some(s),
+                        _ => None,
+                    })
+                    .filter(|s| regex.is_match(s))
+                    .collect();
+
+                Some(!matches.is_empty())
+            }
+            _ => None,
+        }
+    }
+
+    pub fn awk_non_match_array(&self, regex: &Value, array: &Value) -> Option<bool> {
+        Some(!self.awk_match_array(regex, array).unwrap_or(false))
+    }
+
+    pub fn awk_pipe(&self, command: &Value) -> Value {
+        match (self, command) {
+            (Value::StringLiteral(input), Value::Command(cmd, args)) => {
+                let output = Command::new(cmd)
+                    .args(args)
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .spawn();
+
+                match output {
+                    Ok(mut child) => {
+                        let mut child_stdin = child.stdin.take().unwrap();
+                        child_stdin.write_all(input.as_bytes()).unwrap();
+
+                        let mut buffer = String::new();
+                        child
+                            .stdout
+                            .take()
+                            .unwrap()
+                            .read_to_string(&mut buffer)
+                            .unwrap();
+
+                        let status = child.wait().unwrap();
+
+                        Value::StringLiteral(buffer)
+                    }
+                    Err(e) => {
+                        exit_err!("Unexpected error: {}", e);
+                    }
+                }
+            }
+            _ => {
+                exit_err!("Invalid usage of pipe operator");
+            }
+        }
+    }
+
+    pub fn awk_print_pipe(&self, command: &Value) {
+        match (self, command) {
+            (Value::StringLiteral(input), Value::Command(cmd, args)) => {
+                let output = Command::new(cmd)
+                    .args(args)
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .spawn();
+
+                match output {
+                    Ok(mut child) => {
+                        let mut child_stdin = child.stdin.take().unwrap();
+                        child_stdin.write_all(input.as_bytes()).unwrap();
+
+                        let mut buffer = String::new();
+                        child
+                            .stdout
+                            .take()
+                            .unwrap()
+                            .read_to_string(&mut buffer)
+                            .unwrap();
+
+                        let status = child.wait().unwrap();
+
+                        print!("{}", buffer);
+                    }
+                    Err(e) => {
+                        exit_err!("Unexpected error: {}", e);
+                    }
+                }
+            }
+            _ => {
+                exit_err!("Invalid usage of print pipe operator");
+            }
         }
     }
 }
@@ -443,14 +604,6 @@ impl StackVM {
             .pop()
             .and_then(|val| val.as_instruction())
             .unwrap_or(0) as usize;
-    }
-
-    pub fn exec_open_pipe(&mut self) {
-        let command = self.stack.pop();
-        let (result, status) = command.exec_command();
-
-        self.environ.insert("STATUS", status);
-        self.stack.push(Value::String(result));
     }
 
     pub fn exec_load_variable(&mut self) {
