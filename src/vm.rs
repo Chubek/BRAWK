@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use std::io::prelude::*;
+use std::io::{BufRead, BufReader, BufWrite, BufWriter};
+use std::fs::File;
 use std::process::{exit, Command, Stdio};
 
 #[derive(Debug, Clone)]
@@ -14,6 +16,9 @@ enum Value {
     Bool(bool),
     Commmand(String, Vec<String>),
     ArrayLiteral(HashMap<String, Box<Value>>),
+    FilePath(String),
+    BufferedReader(BufReader),
+    BufferedWriter(BufWriter),
 }
 
 macro_rules! exit_err {
@@ -282,6 +287,30 @@ impl Value {
             }
         } else {
             panic!("Value is not a command");
+        }
+    }
+    
+    fn read_line_from_file(self) -> Option<String> {
+        if let Self::BufferedReader(buff_reader) = self {
+            buff_reader.read_line().ok_or(None)
+        } else {
+            panic("Value is not a buffered reader");
+        }
+    }
+
+    fn read_all_from_file(self) -> Option<String> {
+        if let Self::BufferedReader(buff_reader) = self {
+            buff_reader.read_all().ok_or(None)
+        } else {
+            panic!("Value is not a buffered reader");
+        }
+    }
+
+    fn write_to_file(self, text: String) {
+        if let Self::BuffereWriter(buff_writer) = self {
+            buff_writer.write_all(text);
+        } else {
+            panic!("Value is not a buffered writer");
         }
     }
 }
