@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::io::prelude::*;
 use std::io::{BufRead, BufReader, BufWrite, BufWriter};
-use std::fs::File;
+use std::fs::{OpenOptions, File};
 use std::process::{exit, Command, Stdio};
 
 #[derive(Debug, Clone)]
@@ -36,7 +36,7 @@ macro_rules! exit_err {
 }
 
 impl Value {
-    fn add(&self, other: &Value) -> Option<Value> {
+    pub fn add(&self, other: &Value) -> Option<Value> {
         match (self, other) {
             (Value::Number(a), Value::Number(b)) => Some(Value::Number(a + b)),
             (Value::Float(a), Value::Float(b)) => Some(Value::Float(a + b)),
@@ -54,7 +54,7 @@ impl Value {
         }
     }
 
-    fn subtract(&self, other: &Value) -> Option<Value> {
+    pub fn subtract(&self, other: &Value) -> Option<Value> {
         match (self, other) {
             (Value::Number(a), Value::Number(b)) => Some(Value::Number(a - b)),
             (Value::Float(a), Value::Float(b)) => Some(Value::Float(a - b)),
@@ -62,7 +62,7 @@ impl Value {
         }
     }
 
-    fn multiply(&self, other: &Value) -> Option<Value> {
+    pub fn multiply(&self, other: &Value) -> Option<Value> {
         match (self, other) {
             (Value::Number(a), Value::Number(b)) => Some(Value::Number(a * b)),
             (Value::Float(a), Value::Float(b)) => Some(Value::Float(a * b)),
@@ -70,7 +70,7 @@ impl Value {
         }
     }
 
-    fn divide(&self, other: &Value) -> Option<Value> {
+    pub fn divide(&self, other: &Value) -> Option<Value> {
         match (self, other) {
             (Value::Number(a), Value::Number(b)) => {
                 if b != 0 {
@@ -90,7 +90,7 @@ impl Value {
         }
     }
 
-    fn exponentiate(&self, other: &Value) -> Option<Value> {
+    pub fn exponentiate(&self, other: &Value) -> Option<Value> {
         match (self, other) {
             (Value::Number(base), Value::Number(exponent)) => {
                 Some(Value::Number(base.pow(*exponent as u32)))
@@ -102,7 +102,7 @@ impl Value {
         }
     }
 
-    fn equals(&self, other: &Value) -> bool {
+    pub fn equals(&self, other: &Value) -> bool {
         match (self, other) {
             (Value::Number(a), Value::Number(b)) => a == b,
             (Value::Float(a), Value::Float(b)) => a == b,
@@ -111,11 +111,11 @@ impl Value {
         }
     }
 
-    fn not_equals(&self, other: &Value) -> bool {
+    pub fn not_equals(&self, other: &Value) -> bool {
         !self.equals(other)
     }
 
-    fn greater_than(&self, other: &Value) -> Option<bool> {
+    pub fn greater_than(&self, other: &Value) -> Option<bool> {
         match (self, other) {
             (Value::Number(a), Value::Number(b)) => Some(a > b),
             (Value::Float(a), Value::Float(b)) => Some(a > b),
@@ -123,7 +123,7 @@ impl Value {
         }
     }
 
-    fn greater_than_equals(&self, other: &Value) -> Option<bool> {
+    pub fn greater_than_equals(&self, other: &Value) -> Option<bool> {
         match (self, other) {
             (Value::Number(a), Value::Number(b)) => Some(a >= b),
             (Value::Float(a), Value::Float(b)) => Some(a >= b),
@@ -131,7 +131,7 @@ impl Value {
         }
     }
 
-    fn less_than(&self, other: &Value) -> Option<bool> {
+    pub fn less_than(&self, other: &Value) -> Option<bool> {
         match (self, other) {
             (Value::Number(a), Value::Number(b)) => Some(a < b),
             (Value::Float(a), Value::Float(b)) => Some(a < b),
@@ -139,7 +139,7 @@ impl Value {
         }
     }
 
-    fn less_than_equals(&self, other: &Value) -> Option<bool> {
+    pub fn less_than_equals(&self, other: &Value) -> Option<bool> {
         match (self, other) {
             (Value::Number(a), Value::Number(b)) => Some(a <= b),
             (Value::Float(a), Value::Float(b)) => Some(a <= b),
@@ -147,7 +147,7 @@ impl Value {
         }
     }
 
-    fn ere_match(&self, pattern: &Value) -> Option<bool> {
+    pub fn ere_match(&self, pattern: &Value) -> Option<bool> {
         match (self, pattern) {
             (Value::StringLiteral(input), Value::RegexPattern(regex)) => {
                 let regex = regex::Regex::new(regex).ok()?;
@@ -157,7 +157,7 @@ impl Value {
         }
     }
 
-    fn ere_non_match(&self, pattern: &Value) -> Option<bool> {
+    pub fn ere_non_match(&self, pattern: &Value) -> Option<bool> {
         match (self, pattern) {
             (Value::StringLiteral(input), Value::RegexPattern(regex)) => {
                 let regex = regex::Regex::new(regex).ok()?;
@@ -167,7 +167,7 @@ impl Value {
         }
     }
 
-    fn increment(&mut self) -> Option<()> {
+    pub fn increment(&mut self) -> Option<()> {
         match self {
             Value::Number(ref mut n) => {
                 *n = n.checked_add(1)?;
@@ -181,7 +181,7 @@ impl Value {
         }
     }
 
-    fn decrement(&mut self) -> Option<()> {
+    pub fn decrement(&mut self) -> Option<()> {
         match self {
             Value::Number(ref mut n) => {
                 *n = n.checked_sub(1)?;
@@ -195,14 +195,14 @@ impl Value {
         }
     }
 
-    fn bitwise_not(&mut self) -> Option<Value> {
+    pub fn bitwise_not(&mut self) -> Option<Value> {
         match self {
             Value::Number(ref mut n) => Some(Value::Number(!(*n))),
             _ => None,
         }
     }
 
-    fn make_negative(&mut self) -> Option<()> {
+    pub fn make_negative(&mut self) -> Option<()> {
         match self {
             Value::Number(ref mut n) => {
                 *n = -(*n);
@@ -216,28 +216,28 @@ impl Value {
         }
     }
 
-    fn bitwise_and(&self, other: &Value) -> Option<Value> {
+    pub fn bitwise_and(&self, other: &Value) -> Option<Value> {
         match (self, other) {
             (Value::Number(a), Value::Number(b)) => Some(Value::Number(a & b)),
             _ => None,
         }
     }
 
-    fn bitwise_or(&self, other: &Value) -> Option<Value> {
+    pub fn bitwise_or(&self, other: &Value) -> Option<Value> {
         match (self, other) {
             (Value::Number(a), Value::Number(b)) => Some(Value::Number(a | b)),
             _ => None,
         }
     }
 
-    fn bitwise_xor(&self, other: &Value) -> Option<Value> {
+    pub fn bitwise_xor(&self, other: &Value) -> Option<Value> {
         match (self, other) {
             (Value::Number(a), Value::Number(b)) => Some(Value::Number(a ^ b)),
             _ => None,
         }
     }
 
-    fn logical_or(&self, other: &Value) -> Option<Value> {
+    pub fn logical_or(&self, other: &Value) -> Option<Value> {
         match (self, other) {
             (Value::Number(a), Value::Number(b)) => {
                 Some(Value::Number(if a != &0 || b != &0 { 1 } else { 0 }))
@@ -246,7 +246,7 @@ impl Value {
         }
     }
 
-    fn logical_and(&self, other: &Value) -> Option<Value> {
+    pub fn logical_and(&self, other: &Value) -> Option<Value> {
         match (self, other) {
             (Value::Number(a), Value::Number(b)) => {
                 Some(Value::Number(if a != &0 && b != &0 { 1 } else { 0 }))
@@ -255,7 +255,7 @@ impl Value {
         }
     }
 
-    fn as_instruction(self) -> usize {
+    pub fn as_instruction(self) -> usize {
         if Self::Instruction(instruction) = self {
             instruction
         } else {
@@ -263,7 +263,7 @@ impl Value {
         }
     }
 
-    fn exec_command(self) -> (String, i32) {
+    pub fn exec_command(self) -> (String, i32) {
         if let Self::Command(command, args) = self {
             let output = Command::new(cmd).args(args).stdout(Stdio::piped()).spawn();
 
@@ -290,23 +290,51 @@ impl Value {
         }
     }
     
-    fn read_line_from_file(self) -> Option<String> {
+    pub fn open_file_for_read(self) -> Value {
+        if let Self::FilePath(file_path) = self {
+            let file = OpenOptions::new()
+                 .open(file_path);
+            let mut buff_reader = BufReader::new(file);
+            Self::BufferedReader(buff_reader)
+         } else {
+            panic!("Value is not a file path");
+         }
+   }
+
+    pub fn open_file_for_write(self) -> Value {
+        if let Self::FilePath(file_path) = self {
+            let file = OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(file_path);
+            let mut buff_writer = BufWriter::new(file);
+            Self::BufferedWriter(buff_writer)
+        }
+    }
+
+    pub fn read_line_from_file(self) -> Value {
         if let Self::BufferedReader(buff_reader) = self {
-            buff_reader.read_line().ok_or(None)
+            let read_line = buff_reader
+                .read_line()
+                .unwrap_or(String::new());
+            Value::String(read_line)
         } else {
             panic("Value is not a buffered reader");
         }
     }
 
-    fn read_all_from_file(self) -> Option<String> {
+    pub fn read_all_from_file(self) -> Value {
         if let Self::BufferedReader(buff_reader) = self {
-            buff_reader.read_all().ok_or(None)
+            let read_text = buff_reader
+                .read_all()
+                .unwrap_or(String::new());
+            Value::String(read_text)
         } else {
             panic!("Value is not a buffered reader");
         }
     }
 
-    fn write_to_file(self, text: String) {
+    pub fn write_to_file(self, text: String) {
         if let Self::BuffereWriter(buff_writer) = self {
             buff_writer.write_all(text);
         } else {
@@ -377,7 +405,7 @@ struct StackVM {
 }
 
 impl StackVM {
-    fn new(program: Vec<Instruction>) -> Self {
+    pub fn new(program: Vec<Instruction>) -> Self {
         StackVM {
             stack: Vec::new(),
             program,
@@ -387,7 +415,7 @@ impl StackVM {
         }
     }
 
-    fn exec_jump_if_false(&mut self) {
+    pub fn exec_jump_if_false(&mut self) {
         if let Some(Value::Instruction(target)) = self.stack.pop() {
             if let Some(Value::Bool(false)) = self.stack.pop() {
                 self.sp = target as usize;
@@ -395,7 +423,7 @@ impl StackVM {
         }
     }
 
-    fn exec_jump_if_true(&mut self) {
+    pub fn exec_jump_if_true(&mut self) {
         if let Some(Value::Instruction(target)) = self.stack.pop() {
             if let Some(Value::Bool(true)) = self.stack.pop() {
                 self.sp = target as usize;
@@ -403,13 +431,13 @@ impl StackVM {
         }
     }
 
-    fn exec_jump(&mut self) {
+    pub fn exec_jump(&mut self) {
         if let Some(Value::Instruction(target)) = self.stack.pop() {
             self.sp = target as usize;
         }
     }
 
-    fn exec_return(&mut self) {
+    pub fn exec_return(&mut self) {
         self.sp = self
             .stack
             .pop()
@@ -417,7 +445,7 @@ impl StackVM {
             .unwrap_or(0) as usize;
     }
 
-    fn exec_open_pipe(&mut self) {
+    pub fn exec_open_pipe(&mut self) {
         let command = self.stack.pop();
         let (result, status) = command.exec_command();
 
@@ -425,7 +453,7 @@ impl StackVM {
         self.stack.push(Value::String(result));
     }
 
-    fn exec_load_variable(&mut self) {
+    pub fn exec_load_variable(&mut self) {
         if let Some(Value::Identifier(variable_name)) = self.stack.pop() {
             if let Some(value) = self.environ.get(&variable_name) {
                 self.stack.push(value.clone());
@@ -438,7 +466,7 @@ impl StackVM {
         }
     }
 
-    fn execute_store_variable(&mut self) {
+    pub fn execute_store_variable(&mut self) {
         if self.stack.len() < 2 {
             panic!("Not enough operands on the stack for STORE_VARIABLE");
         }
@@ -452,7 +480,7 @@ impl StackVM {
         }
     }
 
-    fn execute_load_associative_array_value(&mut self) {
+    pub fn execute_load_associative_array_value(&mut self) {
         if self.stack.is_empty() {
             panic!("Not enough operands on the stack for LOAD_ASSOCIATIVE_ARRAY_VALUE");
         }
@@ -476,7 +504,7 @@ impl StackVM {
         self.sp += 1;
     }
 
-    fn execute_store_associative_array_value(&mut self) {
+    pub fn execute_store_associative_array_value(&mut self) {
         if self.stack.len() < 2 {
             panic!("Not enough operands on the stack for STORE_ASSOCIATIVE_ARRAY_VALUE");
         }
@@ -493,7 +521,7 @@ impl StackVM {
         }
     }
 
-    fn exec_swap(&mut self) {
+    pub fn exec_swap(&mut self) {
         if self.stack.len() < 2 {
             panic!("Not enough operands on the stack for SWAP");
         }
@@ -505,7 +533,7 @@ impl StackVM {
         self.stack.push(second);
     }
 
-    fn exec_duplicate(&mut self) {
+    pub fn exec_duplicate(&mut self) {
         if let Some(top) = self.stack.last().cloned() {
             self.stack.push(top);
         } else {
