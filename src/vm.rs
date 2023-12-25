@@ -262,7 +262,7 @@ impl Value {
         if Self::Instruction(instruction) = self {
             instruction
         } else {
-            panic!("Value is not an instruction");
+            exit_err!("Value is not an instruction");
         }
     }
 
@@ -289,7 +289,7 @@ impl Value {
                 }
             }
         } else {
-            panic!("Value is not a command");
+            exit_err!("Value is not a command");
         }
     }
 
@@ -299,7 +299,7 @@ impl Value {
             let mut buff_reader = BufReader::new(file);
             Self::BufferedReader(buff_reader)
         } else {
-            panic!("Value is not a file path");
+            exit_err!("Value is not a file path");
         }
     }
 
@@ -325,7 +325,7 @@ impl Value {
             let read_text = buff_reader.read_all().unwrap_or(String::new());
             Value::String(read_text)
         } else {
-            panic!("Value is not a buffered reader");
+            exit_err!("Value is not a buffered reader");
         }
     }
 
@@ -333,11 +333,11 @@ impl Value {
         if let Self::BuffereWriter(buff_writer) = self {
             buff_writer.write_all(text);
         } else {
-            panic!("Value is not a buffered writer");
+            exit_err!("Value is not a buffered writer");
         }
     }
 
-    pub fn awk_match(&self, pattern: &Value) -> Option<bool> {
+    pub fn r#match(&self, pattern: &Value) -> Option<bool> {
         match (self, pattern) {
             (Value::StringLiteral(input), Value::StringLiteral(regex_str)) => {
                 let regex = Regex::new(regex_str).ok()?;
@@ -347,11 +347,11 @@ impl Value {
         }
     }
 
-    pub fn awk_not_match(&self, pattern: &Value) -> Option<bool> {
-        Some(!self.awk_match(pattern).unwrap_or(false))
+    pub fn not_match(&self, pattern: &Value) -> Option<bool> {
+        Some(!self.r#match(pattern).unwrap_or(false))
     }
 
-    pub fn awk_substitute(&mut self, regex: &Value, replacement: &Value) -> Option<()> {
+    pub fn substitute(&mut self, regex: &Value, replacement: &Value) -> Option<()> {
         match (self, regex, replacement) {
             (
                 Value::StringLiteral(input),
@@ -366,7 +366,7 @@ impl Value {
         }
     }
 
-    pub fn awk_gsub(&mut self, regex: &Value, replacement: &Value) -> Option<()> {
+    pub fn gsub(&mut self, regex: &Value, replacement: &Value) -> Option<()> {
         match (self, regex, replacement) {
             (
                 Value::StringLiteral(input),
@@ -381,7 +381,7 @@ impl Value {
         }
     }
 
-    pub fn awk_split(&self, regex: &Value, array: &Value) -> Option<i32> {
+    pub fn split(&self, regex: &Value, array: &Value) -> Option<i32> {
         match (self, regex, array) {
             (
                 Value::StringLiteral(input),
@@ -402,7 +402,7 @@ impl Value {
         }
     }
 
-    pub fn awk_match_array(&self, regex: &Value, array: &Value) -> Option<bool> {
+    pub fn match_array(&self, regex: &Value, array: &Value) -> Option<bool> {
         match (self, regex, array) {
             (
                 Value::StringLiteral(input),
@@ -425,11 +425,11 @@ impl Value {
         }
     }
 
-    pub fn awk_non_match_array(&self, regex: &Value, array: &Value) -> Option<bool> {
-        Some(!self.awk_match_array(regex, array).unwrap_or(false))
+    pub fn non_match_array(&self, regex: &Value, array: &Value) -> Option<bool> {
+        Some(!self.match_array(regex, array).unwrap_or(false))
     }
 
-    pub fn awk_pipe(&self, command: &Value) -> Value {
+    pub fn pipe(&self, command: &Value) -> Value {
         match (self, command) {
             (Value::StringLiteral(input), Value::Command(cmd, args)) => {
                 let output = Command::new(cmd)
@@ -466,7 +466,7 @@ impl Value {
         }
     }
 
-    pub fn awk_print_pipe(&self, command: &Value) {
+    pub fn print_pipe(&self, command: &Value) {
         match (self, command) {
             (Value::StringLiteral(input), Value::Command(cmd, args)) => {
                 let output = Command::new(cmd)
@@ -500,6 +500,88 @@ impl Value {
             _ => {
                 exit_err!("Invalid usage of print pipe operator");
             }
+        }
+    }
+
+    pub fn print_with_redirection(&self, file_path: &str, append: bool) {
+        match self {
+            Value::PrintExpr(exprs) => {
+                let output = exprs
+                    .iter()
+                    .map(|expr| expr.to_string())
+                    .collect::<String>();
+                self.redirect_output(file_path, append, output);
+            }
+            _ => {
+                exit_err!("Invalid usage of print operator");
+            }
+        }
+    }
+
+    pub fn printf_with_redirection(&self, format: &str, file_path: &str, append: bool) {
+        match self {
+            Value::PrintFormattedExpr(format_str, exprs) => {
+                if format_str == format {
+                    let output = exprs
+                        .iter()
+                        .map(|expr| expr.to_string())
+                        .collect::<String>();
+                    self.redirect_output(file_path, append, output);
+                } else {
+                    exit_err!("Format string mismatch in printf operator");
+                }
+            }
+            _ => {
+                exit_err!("Invalid usage of printf operator");
+            }
+        }
+    }
+
+    fn redirect_output(&self, file_path: &str, append: bool, output: String) {
+        let file = if append {
+            OpenOptions::new().create(true).append(true).open(file_path)
+        } else {
+            OpenOptions::new().create(true).write(true).open(file_path)
+        };
+
+        match file {
+            Ok(mut file) => {
+                writeln!(file, "{}", output).unwrap();
+            }
+            Err(e) => {
+                exit_err!("Error opening file for redirection: {}", e);
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::Number(n) => write!(f, "{}", n),
+            Value::Float(fl) => write!(f, "{}", fl),
+            Value::StringLiteral(s) => write!(f, "{}", s),
+            Value::Bool(b) => write!(f, "{}", b),
+            Value::PrintExpr(exprs) => {
+                for expr in exprs {
+                    write!(f, "{}", expr)?;
+                }
+                Ok(())
+            }
+            Value::PrintFormattedExpr(format_str, exprs) => {
+                let mut formatted_string = format_str.clone();
+                vec!["%d", "%s", "%f"].into_iter(|f| formatted_string.replace(f, "{}"));
+                write!(
+                    f,
+                    formatted_string,
+                    exprs
+                        .iter()
+                        .map(|expr| expr.to_string())
+                        .collect::<Vec<_>>()
+                        .as_slice()
+                )
+            }
+            _ => write!(f, ""),
         }
     }
 }
@@ -615,13 +697,13 @@ impl StackVM {
                 exit();
             }
         } else {
-            panic!("Invalid operand type for LoadVariable");
+            exit_err!("Invalid operand type for LoadVariable");
         }
     }
 
     pub fn execute_store_variable(&mut self) {
         if self.stack.len() < 2 {
-            panic!("Not enough operands on the stack for STORE_VARIABLE");
+            exit_err!("Not enough operands on the stack for STORE_VARIABLE");
         }
 
         if let (Some(Value::Identifier(variable_name)), Some(value_to_store)) =
@@ -629,13 +711,13 @@ impl StackVM {
         {
             self.environ.insert(variable_name, value_to_store);
         } else {
-            panic!("Invalid operand types for STORE_VARIABLE");
+            exit_err!("Invalid operand types for STORE_VARIABLE");
         }
     }
 
     pub fn execute_load_associative_array_value(&mut self) {
         if self.stack.is_empty() {
-            panic!("Not enough operands on the stack for LOAD_ASSOCIATIVE_ARRAY_VALUE");
+            exit_err!("Not enough operands on the stack for LOAD_ASSOCIATIVE_ARRAY_VALUE");
         }
 
         if let Some(Value::AssociativeIdentifier(ref array_id, ref idx)) = self.stack.pop() {
@@ -651,7 +733,7 @@ impl StackVM {
                 );
             }
         } else {
-            panic!("Invalid operand type for LOAD_ASSOCIATIVE_ARRAY_VALUE");
+            exit_err!("Invalid operand type for LOAD_ASSOCIATIVE_ARRAY_VALUE");
         }
 
         self.sp += 1;
@@ -659,7 +741,7 @@ impl StackVM {
 
     pub fn execute_store_associative_array_value(&mut self) {
         if self.stack.len() < 2 {
-            panic!("Not enough operands on the stack for STORE_ASSOCIATIVE_ARRAY_VALUE");
+            exit_err!("Not enough operands on the stack for STORE_ASSOCIATIVE_ARRAY_VALUE");
         }
 
         if let (Some(Value::AssociativeIdentifier(ref array_id, ref idx)), value_to_store) =
@@ -670,13 +752,13 @@ impl StackVM {
 
             self.environ.insert(key.clone(), value_to_store);
         } else {
-            panic!("Invalid operand types for STORE_ASSOCIATIVE_ARRAY_VALUE");
+            exit_err!("Invalid operand types for STORE_ASSOCIATIVE_ARRAY_VALUE");
         }
     }
 
     pub fn exec_swap(&mut self) {
         if self.stack.len() < 2 {
-            panic!("Not enough operands on the stack for SWAP");
+            exit_err!("Not enough operands on the stack for SWAP");
         }
 
         let top = self.stack.pop().unwrap();
@@ -690,7 +772,7 @@ impl StackVM {
         if let Some(top) = self.stack.last().cloned() {
             self.stack.push(top);
         } else {
-            panic!("Cannot duplicate an empty stack");
+            exit_err!("Cannot duplicate an empty stack");
         }
     }
 }
