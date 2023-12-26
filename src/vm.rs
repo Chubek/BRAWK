@@ -3,6 +3,7 @@ use std::fs::{File, OpenOptions};
 use std::io::prelude::*;
 use std::io::{BufRead, BufReader, BufWrite, BufWriter};
 use std::process::{exit, Command, Stdio};
+use std::rand;
 use regex::Regex;
 
 #[derive(Debug, Clone)]
