@@ -3,6 +3,7 @@ use std::fs::{File, OpenOptions};
 use std::io::prelude::*;
 use std::io::{BufRead, BufReader, BufWrite, BufWriter};
 use std::process::{exit, Command, Stdio};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone)]
 enum Value {
@@ -553,6 +554,128 @@ impl Value {
             }
         }
     }
+
+    
+    pub fn sprintf(&self, format_str: &str) -> String {
+        match self {
+            Value::PrintFormattedExpr(expr_format, exprs) => {
+                let formatted_string = expr_format.clone();
+                format!(
+                    formatted_string,
+                    exprs
+                        .iter()
+                        .map(|expr| expr.to_string())
+                        .collect::<Vec<_>>()
+                        .as_slice()
+                )
+            }
+            _ => {
+                exit_err!("Invalid usage of sprintf operator");
+            }
+        }
+    }
+
+    pub fn rand(&self) -> Value {
+        match self {
+            Value::Number(seed) => {
+                let mut rng = rand::thread_rng();
+                Value::Float(rng.gen_range(0.0..1.0))
+            }
+            Value::Float(seed) => {
+                let mut rng = rand::thread_rng();
+                Value::Float(rng.gen_range(0.0..1.0))
+            }
+            _ => {
+                exit_err!("Invalid usage of rand function");
+            }
+        }
+    }
+
+    pub fn srand(&self, seed: i32) -> Value {
+        match self {
+            Value::Number(_) => {
+                let mut rng = rand::rngs::StdRng::seed_from_u64(seed as u64);
+                Value::Float(rng.gen_range(0.0..1.0))
+            }
+            Value::Float(_) => {
+                let mut rng = rand::rngs::StdRng::seed_from_u64(seed as u64);
+                Value::Float(rng.gen_range(0.0..1.0))
+            }
+            _ => {
+                exit_err!("Invalid usage of srand function");
+            }
+        }
+    }
+
+    pub fn index(&self, target: &Value) -> Value {
+        match (self, target) {
+            (Value::StringLiteral(source), Value::StringLiteral(pattern)) => {
+                if let Some(position) = source.find(pattern) {
+                    Value::Number(position as i32 + 1) // AWK indices start from 1
+                } else {
+                    Value::Number(0) // Not found
+                }
+            }
+            _ => {
+                exit_err!("Invalid usage of index function");
+            }
+        }
+    }
+
+    pub fn length(&self) -> Value {
+        match self {
+            Value::StringLiteral(s) => Value::Number(s.len() as i32),
+            _ => {
+                exit_err!("Invalid usage of length function");
+            }
+        }
+    }
+
+    pub fn split(&self, regex: &Value, array: &Value) -> Value {
+        match (self, regex, array) {
+            (
+                Value::StringLiteral(input),
+                Value::StringLiteral(regex_str),
+                Value::ArrayLiteral(array_map),
+            ) => {
+                if let Ok(regex) = regex::Regex::new(regex_str) {
+                    let split_values: Vec<_> = regex.split(input).map(|s| s.to_string()).collect();
+
+                    // Update array_map with split values
+                    for (index, value) in split_values.into_iter().enumerate() {
+                        array_map.insert(index.to_string(), Box::new(Value::StringLiteral(value)));
+                    }
+
+                    Value::Number(split_values.len() as i32)
+                } else {
+                    exit_err!("Invalid regular expression in split function");
+                }
+            }
+            _ => {
+                exit_err!("Invalid usage of split function");
+            }
+        }
+    }
+
+    pub fn sub(&mut self, regex: &Value, replacement: &Value) -> Value {
+        match (self, regex, replacement) {
+            (
+                Value::StringLiteral(input),
+                Value::StringLiteral(regex_str),
+                Value::StringLiteral(replacement_str),
+            ) => {
+                if let Ok(regex) = regex::Regex::new(regex_str) {
+                    *input = regex.replace(input, replacement_str).to_string();
+                    Value::Number(1) // Number of substitutions made
+                } else {
+                    exit_err!("Invalid regular expression in sub function");
+                }
+            }
+            _ => {
+                exit_err!("Invalid usage of sub function");
+            }
+        }
+    }
 }
 
 impl std::fmt::Display for Value {
@@ -584,6 +707,7 @@ impl std::fmt::Display for Value {
             _ => write!(f, ""),
         }
     }
+
 }
 
 #[derive(Debug, Clone)]
