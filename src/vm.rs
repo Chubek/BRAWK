@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::prelude::*;
-use std::io::{BufRead, BufReader, BufWrite, BufWriter};
+use std::io::{BufReader, BufWriter};
 use std::process::{exit, Command, Stdio};
-use std::rand;
+
+use rand::SeedableRng;
 use regex::Regex;
 
 #[derive(Debug, Clone)]
@@ -17,10 +18,11 @@ enum Value {
     RegexPattern(String),
     Bool(bool),
     Command(String, Vec<String>),
+    ExecResult(String, i32),
     ArrayLiteral(HashMap<String, Box<Value>>),
     FilePath(String),
-    BufferedReader(BufReader),
-    BufferedWriter(BufWriter),
+    BufferedReader(BufReader<Box<File>>),
+    BufferedWriter(BufWriter<Box<File>>),
     PrintExpr(Vec<Box<Value>>),
     PrintFormattedExpr(String, Vec<Box<Value>>),
 }
@@ -30,12 +32,14 @@ macro_rules! exit_err {
         eprintln!(expr);
         eprintln!("This caused RustyAWK to exit with status 1");
         exit(1);
+        None
     },
 
     ($reason:expr,*) {
         eprintln!(expr, *);
         eprintln!("This caused RustyAWK to exit with status 1");
         exit(1);
+        None
     }
 }
 
@@ -106,68 +110,68 @@ impl Value {
         }
     }
 
-    pub fn equals(&self, other: &Value) -> bool {
+    pub fn equals(&self, other: &Value) -> Option<Value> {
         match (self, other) {
-            (Value::Number(a), Value::Number(b)) => a == b,
+            (Value::Number(a), Value::Number(b)) => Some(Value::Bool(a == b)),
             (Value::Float(a), Value::Float(b)) => a == b,
-            (Value::StringLiteral(a), Value::StringLiteral(b)) => a == b,
-            _ => false,
+            (Value::StringLiteral(a), Value::StringLiteral(b)) => Some(Value::Bool(a == b)),
+            _ => Some(Value::Bool(false)),
         }
     }
 
-    pub fn not_equals(&self, other: &Value) -> bool {
-        !self.equals(other)
+    pub fn not_equals(&self, other: &Value) -> Option<Value> {
+        Value::Bool(!self.equals(other))
     }
 
-    pub fn greater_than(&self, other: &Value) -> Option<bool> {
+    pub fn greater_than(&self, other: &Value) -> Option<Value> {
         match (self, other) {
-            (Value::Number(a), Value::Number(b)) => Some(a > b),
-            (Value::Float(a), Value::Float(b)) => Some(a > b),
-            _ => None,
+            (Value::Number(a), Value::Number(b)) => Some(Value::Bool(a > b)),
+            (Value::Float(a), Value::Float(b)) => Some(Value::Bool(a > b)),
+            _ => Some(Value::Bool(false)),
         }
     }
 
-    pub fn greater_than_equals(&self, other: &Value) -> Option<bool> {
+    pub fn greater_than_equals(&self, other: &Value) -> Option<Value> {
         match (self, other) {
-            (Value::Number(a), Value::Number(b)) => Some(a >= b),
-            (Value::Float(a), Value::Float(b)) => Some(a >= b),
-            _ => None,
+            (Value::Number(a), Value::Number(b)) => Some(Value::Bool(a >= b)),
+            (Value::Float(a), Value::Float(b)) => Some(Value::Bool(a >= b)),
+            _ => Some(Value::Bool(false)),
         }
     }
 
-    pub fn less_than(&self, other: &Value) -> Option<bool> {
+    pub fn less_than(&self, other: &Value) -> Option<Value> {
         match (self, other) {
-            (Value::Number(a), Value::Number(b)) => Some(a < b),
-            (Value::Float(a), Value::Float(b)) => Some(a < b),
-            _ => None,
+            (Value::Number(a), Value::Number(b)) => Some(Value::Bool(a < b)),
+            (Value::Float(a), Value::Float(b)) => Some(Value::Bool(a < b)),
+            _ => Some(Value::Bool(false)),
         }
     }
 
-    pub fn less_than_equals(&self, other: &Value) -> Option<bool> {
+    pub fn less_than_equals(&self, other: &Value) -> Option<Value> {
         match (self, other) {
-            (Value::Number(a), Value::Number(b)) => Some(a <= b),
-            (Value::Float(a), Value::Float(b)) => Some(a <= b),
-            _ => None,
+            (Value::Number(a), Value::Number(b)) => Some(Value::Bool(a <= b)),
+            (Value::Float(a), Value::Float(b)) => Some(Value::Bool(a <= b)),
+            _ => Some(Value::Bool(false)),
         }
     }
 
-    pub fn ere_match(&self, pattern: &Value) -> Option<bool> {
+    pub fn ere_match(&self, pattern: &Value) -> Option<Value> {
         match (self, pattern) {
             (Value::StringLiteral(input), Value::RegexPattern(regex)) => {
                 let regex = regex::Regex::new(regex).ok()?;
-                Some(regex.is_match(input))
+                Some(Value::Bool(regex.is_match(input)))
             }
-            _ => None,
+            _ => Some(Value::Bool(false)),
         }
     }
 
-    pub fn ere_non_match(&self, pattern: &Value) -> Option<bool> {
+    pub fn ere_non_match(&self, pattern: &Value) -> Option<Value> {
         match (self, pattern) {
             (Value::StringLiteral(input), Value::RegexPattern(regex)) => {
                 let regex = regex::Regex::new(regex).ok()?;
-                Some(!regex.is_match(input))
+                Some(Value::Bool(!regex.is_match(input)))
             }
-            _ => None,
+            _ => Some(Value::Bool(false)),
         }
     }
 
@@ -201,7 +205,7 @@ impl Value {
 
     pub fn bitwise_not(&mut self) -> Option<Value> {
         match self {
-            Value::Number(ref mut n) => Some(Value::Number(!(*n))),
+            Some(Value::Number(ref mut n) => Some(Value::Number(!(*n)))),
             _ => None,
         }
     }
@@ -260,16 +264,16 @@ impl Value {
     }
 
     pub fn as_instruction(self) -> usize {
-        if Self::Instruction(instruction) = self {
+        if let Self::Instruction(instruction) = self {
             instruction
         } else {
             exit_err!("Value is not an instruction");
         }
     }
 
-    pub fn exec_command(self) -> (String, i32) {
+    pub fn exec_command(self) -> Option<Value> {
         if let Self::Command(command, args) = self {
-            let output = Command::new(cmd).args(args).stdout(Stdio::piped()).spawn();
+            let output = Command::new(command).args(args).stdout(Stdio::piped()).spawn();
 
             match output {
                 Ok(mut child) => {
@@ -283,7 +287,7 @@ impl Value {
 
                     let status = child.wait().unwrap();
 
-                    (buffer, status)
+                    Some(Value::ExecResult(buffer, status))
                 }
                 Err(e) => {
                     exit_err!("Unexpected error: {}", e);
@@ -294,37 +298,39 @@ impl Value {
         }
     }
 
-    pub fn open_file_for_read(self) -> Value {
+    pub fn open_file_for_read(self) -> Option<Value> {
         if let Self::FilePath(file_path) = self {
             let file = OpenOptions::new().open(file_path);
             let mut buff_reader = BufReader::new(file);
-            Self::BufferedReader(buff_reader)
+            Some(Self::BufferedReader(buff_reader))
         } else {
             exit_err!("Value is not a file path");
         }
     }
 
-    pub fn open_file_for_write(self) -> Value {
+    pub fn open_file_for_write(self) -> Option<Value> {
         if let Self::FilePath(file_path) = self {
             let file = OpenOptions::new().create(true).append(true).open(file_path);
             let mut buff_writer = BufWriter::new(file);
-            Self::BufferedWriter(buff_writer)
+            Some(Self::BufferedWriter(buff_writer))
+        } else {
+            exit_err!("Value is not a file path");
         }
     }
 
-    pub fn read_line_from_file(self) -> Value {
+    pub fn read_line_from_file(self) -> Option<Value> {
         if let Self::BufferedReader(buff_reader) = self {
             let read_line = buff_reader.read_line().unwrap_or(String::new());
-            Value::String(read_line)
+            Some(Value::String(read_line))
         } else {
-            panic("Value is not a buffered reader");
+            exit_err!("Value is not a buffered reader");
         }
     }
 
-    pub fn read_all_from_file(self) -> Value {
+    pub fn read_all_from_file(self) -> Option<Value> {
         if let Self::BufferedReader(buff_reader) = self {
             let read_text = buff_reader.read_all().unwrap_or(String::new());
-            Value::String(read_text)
+            Some(Value::String(read_text))
         } else {
             exit_err!("Value is not a buffered reader");
         }
@@ -338,18 +344,18 @@ impl Value {
         }
     }
 
-    pub fn r#match(&self, pattern: &Value) -> Option<bool> {
+    pub fn r#match(&self, pattern: &Value) -> Option<Value> {
         match (self, pattern) {
             (Value::StringLiteral(input), Value::StringLiteral(regex_str)) => {
                 let regex = Regex::new(regex_str).ok()?;
-                Some(regex.is_match(input))
+                Some(Value::Bool(regex.is_match(input)))
             }
             _ => None,
         }
     }
 
-    pub fn not_match(&self, pattern: &Value) -> Option<bool> {
-        Some(!self.r#match(pattern).unwrap_or(false))
+    pub fn not_match(&self, pattern: &Value) -> Option<Value> {
+        Some(Value::Bool(!self.r#match(pattern).unwrap_or(false)))
     }
 
     pub fn substitute(&mut self, regex: &Value, replacement: &Value) -> Option<()> {
@@ -382,28 +388,7 @@ impl Value {
         }
     }
 
-    pub fn split(&self, regex: &Value, array: &Value) -> Option<i32> {
-        match (self, regex, array) {
-            (
-                Value::StringLiteral(input),
-                Value::StringLiteral(regex_str),
-                Value::ArrayLiteral(array_map),
-            ) => {
-                let regex = Regex::new(regex_str).ok()?;
-                let split_values: Vec<_> = regex.split(input).map(|s| s.to_string()).collect();
-
-                // Update array_map with split values
-                for (index, value) in split_values.into_iter().enumerate() {
-                    array_map.insert(index.to_string(), Box::new(Value::StringLiteral(value)));
-                }
-
-                Some(split_values.len() as i32)
-            }
-            _ => None,
-        }
-    }
-
-    pub fn match_array(&self, regex: &Value, array: &Value) -> Option<bool> {
+    pub fn match_array(&self, regex: &Value, array: &Value) -> Option<Value> {
         match (self, regex, array) {
             (
                 Value::StringLiteral(input),
@@ -420,17 +405,17 @@ impl Value {
                     .filter(|s| regex.is_match(s))
                     .collect();
 
-                Some(!matches.is_empty())
+                Some(Value::Bool(!matches.is_empty()))
             }
             _ => None,
         }
     }
 
-    pub fn non_match_array(&self, regex: &Value, array: &Value) -> Option<bool> {
-        Some(!self.match_array(regex, array).unwrap_or(false))
+    pub fn non_match_array(&self, regex: &Value, array: &Value) -> Option<Value> {
+        Some(Value::Bool(!self.match_array(regex, array).unwrap_or(false)))
     }
 
-    pub fn pipe(&self, command: &Value) -> Value {
+    pub fn pipe(&self, command: &Value) -> Option<Value> {
         match (self, command) {
             (Value::StringLiteral(input), Value::Command(cmd, args)) => {
                 let output = Command::new(cmd)
@@ -454,7 +439,7 @@ impl Value {
 
                         let status = child.wait().unwrap();
 
-                        Value::StringLiteral(buffer)
+                        Some(Value::StringLiteral(buffer))
                     }
                     Err(e) => {
                         exit_err!("Unexpected error: {}", e);
@@ -467,123 +452,16 @@ impl Value {
         }
     }
 
-    pub fn print_pipe(&self, command: &Value) {
-        match (self, command) {
-            (Value::StringLiteral(input), Value::Command(cmd, args)) => {
-                let output = Command::new(cmd)
-                    .args(args)
-                    .stdin(Stdio::piped())
-                    .stdout(Stdio::piped())
-                    .spawn();
 
-                match output {
-                    Ok(mut child) => {
-                        let mut child_stdin = child.stdin.take().unwrap();
-                        child_stdin.write_all(input.as_bytes()).unwrap();
-
-                        let mut buffer = String::new();
-                        child
-                            .stdout
-                            .take()
-                            .unwrap()
-                            .read_to_string(&mut buffer)
-                            .unwrap();
-
-                        let status = child.wait().unwrap();
-
-                        print!("{}", buffer);
-                    }
-                    Err(e) => {
-                        exit_err!("Unexpected error: {}", e);
-                    }
-                }
-            }
-            _ => {
-                exit_err!("Invalid usage of print pipe operator");
-            }
-        }
-    }
-
-    pub fn print_with_redirection(&self, file_path: &str, append: bool) {
-        match self {
-            Value::PrintExpr(exprs) => {
-                let output = exprs
-                    .iter()
-                    .map(|expr| expr.to_string())
-                    .collect::<String>();
-                self.redirect_output(file_path, append, output);
-            }
-            _ => {
-                exit_err!("Invalid usage of print operator");
-            }
-        }
-    }
-
-    pub fn printf_with_redirection(&self, format: &str, file_path: &str, append: bool) {
-        match self {
-            Value::PrintFormattedExpr(format_str, exprs) => {
-                if format_str == format {
-                    let output = exprs
-                        .iter()
-                        .map(|expr| expr.to_string())
-                        .collect::<String>();
-                    self.redirect_output(file_path, append, output);
-                } else {
-                    exit_err!("Format string mismatch in printf operator");
-                }
-            }
-            _ => {
-                exit_err!("Invalid usage of printf operator");
-            }
-        }
-    }
-
-    fn redirect_output(&self, file_path: &str, append: bool, output: String) {
-        let file = if append {
-            OpenOptions::new().create(true).append(true).open(file_path)
-        } else {
-            OpenOptions::new().create(true).write(true).open(file_path)
-        };
-
-        match file {
-            Ok(mut file) => {
-                writeln!(file, "{}", output).unwrap();
-            }
-            Err(e) => {
-                exit_err!("Error opening file for redirection: {}", e);
-            }
-        }
-    }
-
-    
-    pub fn sprintf(&self, format_str: &str) -> String {
-        match self {
-            Value::PrintFormattedExpr(expr_format, exprs) => {
-                let formatted_string = expr_format.clone();
-                format!(
-                    formatted_string,
-                    exprs
-                        .iter()
-                        .map(|expr| expr.to_string())
-                        .collect::<Vec<_>>()
-                        .as_slice()
-                )
-            }
-            _ => {
-                exit_err!("Invalid usage of sprintf operator");
-            }
-        }
-    }
-
-    pub fn rand(&self) -> Value {
+    pub fn rand(&self) -> Option<Value> {
         match self {
             Value::Number(seed) => {
                 let mut rng = rand::thread_rng();
-                Value::Float(rng.gen_range(0.0..1.0))
+                Some(Value::Float(rng.gen_range(0.0..1.0)))
             }
             Value::Float(seed) => {
                 let mut rng = rand::thread_rng();
-                Value::Float(rng.gen_range(0.0..1.0))
+                Some(Value::Float(rng.gen_range(0.0..1.0)))
             }
             _ => {
                 exit_err!("Invalid usage of rand function");
@@ -591,15 +469,15 @@ impl Value {
         }
     }
 
-    pub fn srand(&self, seed: i32) -> Value {
+    pub fn srand(&self, seed: i32) -> Option<Value> {
         match self {
             Value::Number(_) => {
                 let mut rng = rand::rngs::StdRng::seed_from_u64(seed as u64);
-                Value::Float(rng.gen_range(0.0..1.0))
+                Some(Value::Float(rng.gen_range(0.0..1.0)))
             }
             Value::Float(_) => {
                 let mut rng = rand::rngs::StdRng::seed_from_u64(seed as u64);
-                Value::Float(rng.gen_range(0.0..1.0))
+                Some(Value::Float(rng.gen_range(0.0..1.0)))
             }
             _ => {
                 exit_err!("Invalid usage of srand function");
@@ -607,13 +485,13 @@ impl Value {
         }
     }
 
-    pub fn index(&self, target: &Value) -> Value {
+    pub fn index(&self, target: &Value) -> Option<Value> {
         match (self, target) {
             (Value::StringLiteral(source), Value::StringLiteral(pattern)) => {
                 if let Some(position) = source.find(pattern) {
-                    Value::Number(position as i32 + 1) // AWK indices start from 1
+                    Some(Value::Number(position as i32 + 1))
                 } else {
-                    Value::Number(0) // Not found
+                    Some(Value::Number(0))
                 }
             }
             _ => {
@@ -622,16 +500,16 @@ impl Value {
         }
     }
 
-    pub fn length(&self) -> Value {
+    pub fn length(&self) -> Option<Value> {
         match self {
-            Value::StringLiteral(s) => Value::Number(s.len() as i32),
+            Value::StringLiteral(s) => Some(Value::Number(s.len() as i32)),
             _ => {
                 exit_err!("Invalid usage of length function");
             }
         }
     }
 
-    pub fn split(&self, regex: &Value, array: &Value) -> Value {
+    pub fn split(&self, regex: &Value, array: &Value) -> Option<Value> {
         match (self, regex, array) {
             (
                 Value::StringLiteral(input),
@@ -641,12 +519,12 @@ impl Value {
                 if let Ok(regex) = regex::Regex::new(regex_str) {
                     let split_values: Vec<_> = regex.split(input).map(|s| s.to_string()).collect();
 
-                    // Update array_map with split values
+                    
                     for (index, value) in split_values.into_iter().enumerate() {
                         array_map.insert(index.to_string(), Box::new(Value::StringLiteral(value)));
                     }
 
-                    Value::Number(split_values.len() as i32)
+                    Some(Value::Number(split_values.len() as i32))
                 } else {
                     exit_err!("Invalid regular expression in split function");
                 }
@@ -657,7 +535,7 @@ impl Value {
         }
     }
 
-    pub fn sub(&mut self, regex: &Value, replacement: &Value) -> Value {
+    pub fn sub(&mut self, regex: &Value, replacement: &Value) -> Option<Value> {
         match (self, regex, replacement) {
             (
                 Value::StringLiteral(input),
@@ -666,7 +544,7 @@ impl Value {
             ) => {
                 if let Ok(regex) = regex::Regex::new(regex_str) {
                     *input = regex.replace(input, replacement_str).to_string();
-                    Value::Number(1) // Number of substitutions made
+                    Some(Value::Number(1)) 
                 } else {
                     exit_err!("Invalid regular expression in sub function");
                 }
@@ -676,38 +554,6 @@ impl Value {
             }
         }
     }
-}
-
-impl std::fmt::Display for Value {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Value::Number(n) => write!(f, "{}", n),
-            Value::Float(fl) => write!(f, "{}", fl),
-            Value::StringLiteral(s) => write!(f, "{}", s),
-            Value::Bool(b) => write!(f, "{}", b),
-            Value::PrintExpr(exprs) => {
-                for expr in exprs {
-                    write!(f, "{}", expr)?;
-                }
-                Ok(())
-            }
-            Value::PrintFormattedExpr(format_str, exprs) => {
-                let mut formatted_string = format_str.clone();
-                vec!["%d", "%s", "%f"].into_iter(|f| formatted_string.replace(f, "{}"));
-                write!(
-                    f,
-                    formatted_string,
-                    exprs
-                        .iter()
-                        .map(|expr| expr.to_string())
-                        .collect::<Vec<_>>()
-                        .as_slice()
-                )
-            }
-            _ => write!(f, ""),
-        }
-    }
-
 }
 
 #[derive(Debug, Clone)]
@@ -766,7 +612,7 @@ enum Instruction {
 struct StackVM {
     stack: Vec<Value>,
     program: Vec<Instruction>,
-    environ: HashMap<String, Value>,
+    environ: HashMap<String, Option<Value>>,
     pc: usize,
     sp: usize,
 }
@@ -808,17 +654,16 @@ impl StackVM {
         self.sp = self
             .stack
             .pop()
-            .and_then(|val| val.as_instruction())
-            .unwrap_or(0) as usize;
+            .unwrap_or(Value::Instruction(0))
+            .as_instruction();
     }
 
     pub fn exec_load_variable(&mut self) {
         if let Some(Value::Identifier(variable_name)) = self.stack.pop() {
             if let Some(value) = self.environ.get(&variable_name) {
-                self.stack.push(value.clone());
+                self.stack.push(value.unwrap().clone());
             } else {
                 exit_err!("Error: variable `{}` not found", variable_name);
-                exit();
             }
         } else {
             exit_err!("Invalid operand type for LoadVariable");
@@ -833,7 +678,7 @@ impl StackVM {
         if let (Some(Value::Identifier(variable_name)), Some(value_to_store)) =
             (self.stack.pop(), self.stack.pop())
         {
-            self.environ.insert(variable_name, value_to_store);
+            self.environ.insert(variable_name, Some(value_to_store));
         } else {
             exit_err!("Invalid operand types for STORE_VARIABLE");
         }
@@ -849,7 +694,7 @@ impl StackVM {
             key.push_str(idx);
 
             if let Some(value) = self.environ.get(&key) {
-                self.stack.push(value.clone());
+                self.stack.push(value.unwrap().clone());
             } else {
                 exit_err!(
                     "Error: either array `{}` or index `{}` don't exit, array_id",
@@ -868,13 +713,13 @@ impl StackVM {
             exit_err!("Not enough operands on the stack for STORE_ASSOCIATIVE_ARRAY_VALUE");
         }
 
-        if let (Some(Value::AssociativeIdentifier(ref array_id, ref idx)), value_to_store) =
+        if let (Some(Value::AssociativeIdentifier(ref array_id, ref idx)), Some(value_to_store)) =
             (self.stack.pop(), self.stack.pop())
         {
             let mut key = array_id.clone();
             key.push_str(idx);
 
-            self.environ.insert(key.clone(), value_to_store);
+            self.environ.insert(key.clone(), Some(value_to_store));
         } else {
             exit_err!("Invalid operand types for STORE_ASSOCIATIVE_ARRAY_VALUE");
         }
