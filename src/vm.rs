@@ -31,15 +31,13 @@ macro_rules! exit_err {
     ($reason:expr) => {
         eprintln!(expr);
         eprintln!("This caused RustyAWK to exit with status 1");
-        exit(1);
-        None
+        exit(1)
     },
 
     ($reason:expr,*) {
         eprintln!(expr, *);
         eprintln!("This caused RustyAWK to exit with status 1");
-        exit(1);
-        None
+        exit(1)
     }
 }
 
@@ -60,6 +58,7 @@ impl Value {
             }
             _ => None,
         }
+        unreachable!()
     }
 
     pub fn subtract(&self, other: &Value) -> Option<Value> {
@@ -68,6 +67,7 @@ impl Value {
             (Value::Float(a), Value::Float(b)) => Some(Value::Float(a - b)),
             _ => None,
         }
+        unreachable!()    
     }
 
     pub fn multiply(&self, other: &Value) -> Option<Value> {
@@ -76,6 +76,7 @@ impl Value {
             (Value::Float(a), Value::Float(b)) => Some(Value::Float(a * b)),
             _ => None,
         }
+        unreachable!()
     }
 
     pub fn divide(&self, other: &Value) -> Option<Value> {
@@ -96,6 +97,7 @@ impl Value {
             }
             _ => None,
         }
+        unreachable!()
     }
 
     pub fn exponentiate(&self, other: &Value) -> Option<Value> {
@@ -108,6 +110,7 @@ impl Value {
             }
             _ => None,
         }
+        unreachable!()
     }
 
     pub fn equals(&self, other: &Value) -> Option<Value> {
@@ -117,6 +120,7 @@ impl Value {
             (Value::StringLiteral(a), Value::StringLiteral(b)) => Some(Value::Bool(a == b)),
             _ => Some(Value::Bool(false)),
         }
+        unreachable!()
     }
 
     pub fn not_equals(&self, other: &Value) -> Option<Value> {
@@ -129,6 +133,7 @@ impl Value {
             (Value::Float(a), Value::Float(b)) => Some(Value::Bool(a > b)),
             _ => Some(Value::Bool(false)),
         }
+        unreachable!()
     }
 
     pub fn greater_than_equals(&self, other: &Value) -> Option<Value> {
@@ -137,6 +142,7 @@ impl Value {
             (Value::Float(a), Value::Float(b)) => Some(Value::Bool(a >= b)),
             _ => Some(Value::Bool(false)),
         }
+        unreachable!()
     }
 
     pub fn less_than(&self, other: &Value) -> Option<Value> {
@@ -145,6 +151,7 @@ impl Value {
             (Value::Float(a), Value::Float(b)) => Some(Value::Bool(a < b)),
             _ => Some(Value::Bool(false)),
         }
+        unreachable!()
     }
 
     pub fn less_than_equals(&self, other: &Value) -> Option<Value> {
@@ -163,6 +170,7 @@ impl Value {
             }
             _ => Some(Value::Bool(false)),
         }
+        unreachable!()
     }
 
     pub fn ere_non_match(&self, pattern: &Value) -> Option<Value> {
@@ -187,6 +195,7 @@ impl Value {
             }
             _ => None,
         }
+        unreachable!()
     }
 
     pub fn decrement(&mut self) -> Option<()> {
@@ -201,13 +210,15 @@ impl Value {
             }
             _ => None,
         }
+        unreachable!()
     }
 
     pub fn bitwise_not(&mut self) -> Option<Value> {
         match self {
-            Some(Value::Number(ref mut n) => Some(Value::Number(!(*n)))),
+            Some(Value::Number(ref mut n)) => Some(Value::Number(!(*n))),
             _ => None,
         }
+        unreachable!()
     }
 
     pub fn make_negative(&mut self) -> Option<()> {
@@ -222,6 +233,7 @@ impl Value {
             }
             _ => None,
         }
+        unreachable!()
     }
 
     pub fn bitwise_and(&self, other: &Value) -> Option<Value> {
@@ -229,6 +241,7 @@ impl Value {
             (Value::Number(a), Value::Number(b)) => Some(Value::Number(a & b)),
             _ => None,
         }
+        unreachable!()
     }
 
     pub fn bitwise_or(&self, other: &Value) -> Option<Value> {
@@ -236,6 +249,7 @@ impl Value {
             (Value::Number(a), Value::Number(b)) => Some(Value::Number(a | b)),
             _ => None,
         }
+        unreachable!()
     }
 
     pub fn bitwise_xor(&self, other: &Value) -> Option<Value> {
@@ -243,6 +257,7 @@ impl Value {
             (Value::Number(a), Value::Number(b)) => Some(Value::Number(a ^ b)),
             _ => None,
         }
+        unreachable!()
     }
 
     pub fn logical_or(&self, other: &Value) -> Option<Value> {
@@ -252,6 +267,7 @@ impl Value {
             }
             _ => None,
         }
+        unreachable!()
     }
 
     pub fn logical_and(&self, other: &Value) -> Option<Value> {
@@ -261,6 +277,7 @@ impl Value {
             }
             _ => None,
         }
+        unreachable!()
     }
 
     pub fn as_instruction(self) -> usize {
@@ -269,6 +286,7 @@ impl Value {
         } else {
             exit_err!("Value is not an instruction");
         }
+        unreachable!()
     }
 
     pub fn exec_command(self) -> Option<Value> {
@@ -296,6 +314,7 @@ impl Value {
         } else {
             exit_err!("Value is not a command");
         }
+        unreachable!()
     }
 
     pub fn open_file_for_read(self) -> Option<Value> {
@@ -306,6 +325,7 @@ impl Value {
         } else {
             exit_err!("Value is not a file path");
         }
+        unreachable!()
     }
 
     pub fn open_file_for_write(self) -> Option<Value> {
@@ -316,6 +336,7 @@ impl Value {
         } else {
             exit_err!("Value is not a file path");
         }
+        unreachable!()
     }
 
     pub fn read_line_from_file(self) -> Option<Value> {
@@ -325,6 +346,7 @@ impl Value {
         } else {
             exit_err!("Value is not a buffered reader");
         }
+        unreachable!()
     }
 
     pub fn read_all_from_file(self) -> Option<Value> {
@@ -334,6 +356,7 @@ impl Value {
         } else {
             exit_err!("Value is not a buffered reader");
         }
+        unreachable!()
     }
 
     pub fn write_to_file(self, text: String) {
@@ -342,6 +365,7 @@ impl Value {
         } else {
             exit_err!("Value is not a buffered writer");
         }
+        unreachable!()
     }
 
     pub fn r#match(&self, pattern: &Value) -> Option<Value> {
@@ -352,6 +376,7 @@ impl Value {
             }
             _ => None,
         }
+        unreachable!()
     }
 
     pub fn not_match(&self, pattern: &Value) -> Option<Value> {
@@ -371,6 +396,7 @@ impl Value {
             }
             _ => None,
         }
+        unreachable!()
     }
 
     pub fn gsub(&mut self, regex: &Value, replacement: &Value) -> Option<()> {
@@ -386,6 +412,7 @@ impl Value {
             }
             _ => None,
         }
+        unreachable!()
     }
 
     pub fn match_array(&self, regex: &Value, array: &Value) -> Option<Value> {
@@ -409,6 +436,7 @@ impl Value {
             }
             _ => None,
         }
+        unreachable!()
     }
 
     pub fn non_match_array(&self, regex: &Value, array: &Value) -> Option<Value> {
@@ -450,6 +478,7 @@ impl Value {
                 exit_err!("Invalid usage of pipe operator");
             }
         }
+        unreachable!()
     }
 
 
@@ -467,6 +496,7 @@ impl Value {
                 exit_err!("Invalid usage of rand function");
             }
         }
+        unreachable!()
     }
 
     pub fn srand(&self, seed: i32) -> Option<Value> {
@@ -483,6 +513,7 @@ impl Value {
                 exit_err!("Invalid usage of srand function");
             }
         }
+        unreachable!()
     }
 
     pub fn index(&self, target: &Value) -> Option<Value> {
@@ -498,6 +529,7 @@ impl Value {
                 exit_err!("Invalid usage of index function");
             }
         }
+        unreachable!()
     }
 
     pub fn length(&self) -> Option<Value> {
@@ -507,6 +539,7 @@ impl Value {
                 exit_err!("Invalid usage of length function");
             }
         }
+        unreachable!()
     }
 
     pub fn split(&self, regex: &Value, array: &Value) -> Option<Value> {
@@ -533,6 +566,7 @@ impl Value {
                 exit_err!("Invalid usage of split function");
             }
         }
+        unreachable!()
     }
 
     pub fn sub(&mut self, regex: &Value, replacement: &Value) -> Option<Value> {
@@ -553,6 +587,7 @@ impl Value {
                 exit_err!("Invalid usage of sub function");
             }
         }
+        unreachable!()
     }
 }
 
