@@ -3,7 +3,7 @@ use std::fs::{File, OpenOptions};
 use std::io::prelude::*;
 use std::io::{BufRead, BufReader, BufWrite, BufWriter};
 use std::process::{exit, Command, Stdio};
-use std::time::{SystemTime, UNIX_EPOCH};
+use regex::Regex;
 
 #[derive(Debug, Clone)]
 enum Value {
@@ -15,12 +15,11 @@ enum Value {
     StringLiteral(String),
     RegexPattern(String),
     Bool(bool),
-    Commmand(String, Vec<String>),
+    Command(String, Vec<String>),
     ArrayLiteral(HashMap<String, Box<Value>>),
     FilePath(String),
     BufferedReader(BufReader),
     BufferedWriter(BufWriter),
-    Commmand(String),
     PrintExpr(Vec<Box<Value>>),
     PrintFormattedExpr(String, Vec<Box<Value>>),
 }
