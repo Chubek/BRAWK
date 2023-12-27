@@ -1,8 +1,8 @@
 use std::collections::HashMap;
-use std::fs::{File, OpenOptions};
+
 use std::io::prelude::*;
-use std::process::{exit, Command, Stdio};
 use std::ops::Not;
+use std::process::{Command, Stdio};
 
 use rand::{Rng, SeedableRng};
 use regex::Regex;
@@ -21,8 +21,8 @@ enum Value {
     ExecResult(String, std::process::ExitStatus),
     ArrayLiteral(HashMap<String, Box<Value>>),
     FilePath(String),
-    PrintExpr(Vec<Box<Value>>),
-    PrintFormattedExpr(String, Vec<Box<Value>>),
+    PrintExpr(Vec<Value>),
+    PrintFormattedExpr(String, Vec<Value>),
 }
 
 macro_rules! exit_err {
@@ -31,7 +31,7 @@ macro_rules! exit_err {
         eprintln!("This caused RustyAWK to exit with status 1");
         std::process::exit(1);
     };
-    
+
     ($fmt:literal, $($arg:expr),+ $(,)?) => {
         eprintln!($fmt, $($arg),+);
         eprintln!("This caused RustyAWK to exit with status 1");
@@ -51,12 +51,12 @@ impl Value {
             }
             (Value::ArrayLiteral(ref a), Value::ArrayLiteral(ref b)) => {
                 let mut concatenated = a.clone();
-                concatenated.extend(*b);
+                let b_cloned = b.clone();
+                concatenated.extend(b_cloned);
                 Some(Value::ArrayLiteral(concatenated))
             }
             _ => None,
         }
-        
     }
 
     pub fn subtract(&self, other: &Value) -> Option<Value> {
@@ -65,7 +65,6 @@ impl Value {
             (Value::Float(a), Value::Float(b)) => Some(Value::Float(a - b)),
             _ => None,
         }
-            
     }
 
     pub fn multiply(&self, other: &Value) -> Option<Value> {
@@ -74,7 +73,6 @@ impl Value {
             (Value::Float(a), Value::Float(b)) => Some(Value::Float(a * b)),
             _ => None,
         }
-        
     }
 
     pub fn divide(&self, other: &Value) -> Option<Value> {
@@ -95,7 +93,6 @@ impl Value {
             }
             _ => None,
         }
-        
     }
 
     pub fn exponentiate(&self, other: &Value) -> Option<Value> {
@@ -108,7 +105,6 @@ impl Value {
             }
             _ => None,
         }
-        
     }
 
     pub fn equals(&self, other: &Value) -> Option<Value> {
@@ -118,13 +114,12 @@ impl Value {
             (Value::StringLiteral(a), Value::StringLiteral(b)) => Some(Value::Bool(a == b)),
             _ => Some(Value::Bool(false)),
         }
-        
     }
 
     pub fn is_truthy(&self) -> bool {
-        match (self) {
+        match self {
             Value::Number(n) => *n > 0,
-            Value::StringLiteral(s) => s.len() > 0,
+            Value::StringLiteral(s) => !s.is_empty(),
             Value::Bool(b) => *b,
             _ => false,
         }
@@ -133,7 +128,6 @@ impl Value {
     pub fn is_falsy(&self) -> bool {
         !self.is_truthy()
     }
-
 
     pub fn not_equals(&self, other: &Value) -> Option<Value> {
         Some(Value::Bool(self.equals(other).unwrap().is_falsy()))
@@ -145,7 +139,6 @@ impl Value {
             (Value::Float(a), Value::Float(b)) => Some(Value::Bool(a > b)),
             _ => Some(Value::Bool(false)),
         }
-        
     }
 
     pub fn greater_than_equals(&self, other: &Value) -> Option<Value> {
@@ -154,7 +147,6 @@ impl Value {
             (Value::Float(a), Value::Float(b)) => Some(Value::Bool(a >= b)),
             _ => Some(Value::Bool(false)),
         }
-        
     }
 
     pub fn less_than(&self, other: &Value) -> Option<Value> {
@@ -163,7 +155,6 @@ impl Value {
             (Value::Float(a), Value::Float(b)) => Some(Value::Bool(a < b)),
             _ => Some(Value::Bool(false)),
         }
-        
     }
 
     pub fn less_than_equals(&self, other: &Value) -> Option<Value> {
@@ -182,7 +173,6 @@ impl Value {
             }
             _ => Some(Value::Bool(false)),
         }
-        
     }
 
     pub fn ere_non_match(&self, pattern: &Value) -> Option<Value> {
@@ -207,7 +197,6 @@ impl Value {
             }
             _ => None,
         }
-        
     }
 
     pub fn decrement(&mut self) -> Option<()> {
@@ -222,7 +211,6 @@ impl Value {
             }
             _ => None,
         }
-        
     }
 
     pub fn bitwise_not(self) -> Option<Value> {
@@ -230,7 +218,6 @@ impl Value {
             Value::Number(n) => Some(Value::Number(n)),
             _ => None,
         }
-        
     }
 
     pub fn make_negative(&mut self) -> Option<()> {
@@ -245,7 +232,6 @@ impl Value {
             }
             _ => None,
         }
-        
     }
 
     pub fn bitwise_and(&self, other: &Value) -> Option<Value> {
@@ -253,7 +239,6 @@ impl Value {
             (Value::Number(a), Value::Number(b)) => Some(Value::Number(a & b)),
             _ => None,
         }
-        
     }
 
     pub fn bitwise_or(&self, other: &Value) -> Option<Value> {
@@ -261,7 +246,6 @@ impl Value {
             (Value::Number(a), Value::Number(b)) => Some(Value::Number(a | b)),
             _ => None,
         }
-        
     }
 
     pub fn bitwise_xor(&self, other: &Value) -> Option<Value> {
@@ -269,7 +253,6 @@ impl Value {
             (Value::Number(a), Value::Number(b)) => Some(Value::Number(a ^ b)),
             _ => None,
         }
-        
     }
 
     pub fn logical_or(&self, other: &Value) -> Option<Value> {
@@ -279,7 +262,6 @@ impl Value {
             }
             _ => None,
         }
-        
     }
 
     pub fn logical_and(&self, other: &Value) -> Option<Value> {
@@ -289,7 +271,6 @@ impl Value {
             }
             _ => None,
         }
-        
     }
 
     pub fn as_instruction(self) -> usize {
@@ -298,12 +279,14 @@ impl Value {
         } else {
             exit_err!("Value is not an instruction");
         }
-        
     }
 
     pub fn exec_command(self) -> Option<Value> {
         if let Self::Command(command, args) = self {
-            let output = Command::new(command).args(args).stdout(Stdio::piped()).spawn();
+            let output = Command::new(command)
+                .args(args)
+                .stdout(Stdio::piped())
+                .spawn();
 
             match output {
                 Ok(mut child) => {
@@ -326,7 +309,6 @@ impl Value {
         } else {
             exit_err!("Value is not a command");
         }
-        
     }
 
     pub fn r#match(&self, pattern: &Value) -> Option<Value> {
@@ -337,7 +319,6 @@ impl Value {
             }
             _ => None,
         }
-        
     }
 
     pub fn not_match(&self, pattern: &Value) -> Option<Value> {
@@ -357,7 +338,6 @@ impl Value {
             }
             _ => None,
         }
-        
     }
 
     pub fn gsub(&mut self, regex: &Value, replacement: &Value) -> Option<()> {
@@ -373,17 +353,16 @@ impl Value {
             }
             _ => None,
         }
-        
     }
 
-    pub fn get_string(self) -> Option<String> {
+    pub fn get_string(&self) -> Option<String> {
         if let Self::StringLiteral(s) = self {
-            return Some(s);
+            return Some(s.clone());
         }
         None
     }
 
-    pub fn is_string(self) -> bool {
+    pub fn is_string(&self) -> bool {
         if let Self::StringLiteral(_) = self {
             return true;
         }
@@ -393,14 +372,14 @@ impl Value {
     pub fn match_array(&self, regex: &Value, array: &Value) -> Option<Value> {
         match (self, regex, array) {
             (
-                Value::StringLiteral(input),
+                Value::StringLiteral(_input),
                 Value::StringLiteral(regex_str),
                 Value::ArrayLiteral(array_map),
             ) => {
                 let regex = Regex::new(regex_str).ok()?;
                 let matches: Vec<_> = array_map
-                    .into_iter()
-                    .map(|(_, value)| **value)
+                    .iter()
+                    .map(|(_, value)| value.clone())
                     .filter(|v| v.is_string())
                     .map(|v| v.get_string().unwrap())
                     .filter(|s| regex.is_match(s))
@@ -410,11 +389,12 @@ impl Value {
             }
             _ => None,
         }
-        
     }
 
     pub fn non_match_array(&self, regex: &Value, array: &Value) -> Option<Value> {
-        Some(Value::Bool(!self.match_array(regex, array).unwrap().is_falsy()))
+        Some(Value::Bool(
+            !self.match_array(regex, array).unwrap().is_falsy(),
+        ))
     }
 
     pub fn pipe(&self, command: &Value) -> Option<Value> {
@@ -439,7 +419,7 @@ impl Value {
                             .read_to_string(&mut buffer)
                             .unwrap();
 
-                        let status = child.wait().unwrap();
+                        let _status = child.wait().unwrap();
 
                         Some(Value::StringLiteral(buffer))
                     }
@@ -452,17 +432,15 @@ impl Value {
                 exit_err!("Invalid usage of pipe operator");
             }
         }
-        
     }
-
 
     pub fn rand(&self) -> Option<Value> {
         match self {
-            Value::Number(seed) => {
+            Value::Number(_seed) => {
                 let mut rng = rand::thread_rng();
                 Some(Value::Float(rng.gen_range(0.0..1.0)))
             }
-            Value::Float(seed) => {
+            Value::Float(_seed) => {
                 let mut rng = rand::thread_rng();
                 Some(Value::Float(rng.gen_range(0.0..1.0)))
             }
@@ -470,7 +448,6 @@ impl Value {
                 exit_err!("Invalid usage of rand function");
             }
         }
-        
     }
 
     pub fn srand(&self, seed: i32) -> Option<Value> {
@@ -487,7 +464,6 @@ impl Value {
                 exit_err!("Invalid usage of srand function");
             }
         }
-        
     }
 
     pub fn index(&self, target: &Value) -> Option<Value> {
@@ -503,7 +479,6 @@ impl Value {
                 exit_err!("Invalid usage of index function");
             }
         }
-        
     }
 
     pub fn length(&self) -> Option<Value> {
@@ -513,10 +488,9 @@ impl Value {
                 exit_err!("Invalid usage of length function");
             }
         }
-        
     }
 
-    pub fn split(&self, regex: &Value, array: &Value) -> Option<Value> {
+    pub fn split(&self, regex: &Value, array: &mut Value) -> Option<Value> {
         match (self, regex, array) {
             (
                 Value::StringLiteral(input),
@@ -526,8 +500,7 @@ impl Value {
                 if let Ok(regex) = regex::Regex::new(regex_str) {
                     let split_values: Vec<_> = regex.split(input).map(|s| s.to_string()).collect();
 
-                    
-                    for (index, value) in split_values.into_iter().enumerate() {
+                    for (index, value) in split_values.iter().cloned().enumerate() {
                         array_map.insert(index.to_string(), Box::new(Value::StringLiteral(value)));
                     }
 
@@ -540,7 +513,6 @@ impl Value {
                 exit_err!("Invalid usage of split function");
             }
         }
-        
     }
 
     pub fn sub(&mut self, regex: &Value, replacement: &Value) -> Option<Value> {
@@ -561,10 +533,8 @@ impl Value {
                 exit_err!("Invalid usage of sub function");
             }
         }
-        
     }
 }
-
 
 impl Not for Value {
     type Output = Self;
@@ -574,7 +544,10 @@ impl Not for Value {
             Value::Bool(b) => Value::Bool(!b),
             Value::Number(i) => Value::Number(!i),
             _ => {
-                panic!("Cannot apply logical NOT to a non-boolean value: {:?}", self);
+                panic!(
+                    "Cannot apply logical NOT to a non-boolean value: {:?}",
+                    self
+                );
             }
         }
     }
@@ -655,7 +628,7 @@ impl StackVM {
     pub fn exec_jump_if_false(&mut self) {
         if let Some(Value::Instruction(target)) = self.stack.pop() {
             if let Some(Value::Bool(false)) = self.stack.pop() {
-                self.sp = target as usize;
+                self.sp = target;
             }
         }
     }
@@ -663,14 +636,14 @@ impl StackVM {
     pub fn exec_jump_if_true(&mut self) {
         if let Some(Value::Instruction(target)) = self.stack.pop() {
             if let Some(Value::Bool(true)) = self.stack.pop() {
-                self.sp = target as usize;
+                self.sp = target;
             }
         }
     }
 
     pub fn exec_jump(&mut self) {
         if let Some(Value::Instruction(target)) = self.stack.pop() {
-            self.sp = target as usize;
+            self.sp = target;
         }
     }
 
@@ -685,7 +658,7 @@ impl StackVM {
     pub fn exec_load_variable(&mut self) {
         if let Some(Value::Identifier(variable_name)) = self.stack.pop() {
             if let Some(value) = self.environ.get(&variable_name) {
-                self.stack.push(value.unwrap().clone());
+                self.stack.push(value.as_ref().unwrap().clone());
             } else {
                 exit_err!("Error: variable `{}` not found", variable_name);
             }
@@ -718,11 +691,12 @@ impl StackVM {
             key.push_str(idx);
 
             if let Some(value) = self.environ.get(&key) {
-                self.stack.push(value.unwrap().clone());
+                self.stack.push(value.as_ref().unwrap().clone());
             } else {
                 exit_err!(
                     "Error: either array `{}` or index `{}` don't exit, array_id",
-                    array_id, idx
+                    array_id,
+                    idx
                 );
             }
         } else {
