@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::prelude::*;
 use std::process::{exit, Command, Stdio};
+use std::ops::Not;
 
 use rand::{Rng, SeedableRng};
 use regex::Regex;
@@ -120,8 +121,22 @@ impl Value {
         
     }
 
+    pub fn is_truthy(&self) -> bool {
+        match (self) {
+            Value::Number(n) => *n > 0,
+            Value::StringLiteral(s) => s.len() > 0,
+            Value::Bool(b) => *b,
+            _ => false,
+        }
+    }
+
+    pub fn is_falsy(&self) -> bool {
+        !self.is_truthy()
+    }
+
+
     pub fn not_equals(&self, other: &Value) -> Option<Value> {
-        Some(Value::Bool(!self.equals(other)))
+        Some(Value::Bool(self.equals(other).unwrap().is_falsy()))
     }
 
     pub fn greater_than(&self, other: &Value) -> Option<Value> {
@@ -326,7 +341,7 @@ impl Value {
     }
 
     pub fn not_match(&self, pattern: &Value) -> Option<Value> {
-        Some(Value::Bool(!self.r#match(pattern).unwrap()))
+        Some(Value::Bool(self.r#match(pattern).unwrap().is_falsy()))
     }
 
     pub fn substitute(&mut self, regex: &Value, replacement: &Value) -> Option<()> {
@@ -370,7 +385,7 @@ impl Value {
 
     pub fn is_string(self) -> bool {
         if let Self::StringLiteral(_) = self {
-            true
+            return true;
         }
         false
     }
@@ -399,7 +414,7 @@ impl Value {
     }
 
     pub fn non_match_array(&self, regex: &Value, array: &Value) -> Option<Value> {
-        Some(Value::Bool(!self.match_array(regex, array).unwrap_or(false)))
+        Some(Value::Bool(!self.match_array(regex, array).unwrap().is_falsy()))
     }
 
     pub fn pipe(&self, command: &Value) -> Option<Value> {
@@ -537,7 +552,7 @@ impl Value {
             ) => {
                 if let Ok(regex) = regex::Regex::new(regex_str) {
                     *input = regex.replace(input, replacement_str).to_string();
-                    Some(Value::Number(1)) 
+                    Some(Value::Bool(true))
                 } else {
                     exit_err!("Invalid regular expression in sub function");
                 }
@@ -547,6 +562,21 @@ impl Value {
             }
         }
         
+    }
+}
+
+
+impl Not for Value {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        match self {
+            Value::Bool(b) => Value::Bool(!b),
+            Value::Number(i) => Value::Number(!i),
+            _ => {
+                panic!("Cannot apply logical NOT to a non-boolean value: {:?}", self);
+            }
+        }
     }
 }
 
