@@ -3,7 +3,7 @@ use std::fs::{File, OpenOptions};
 use std::io::prelude::*;
 use std::process::{exit, Command, Stdio};
 
-use rand::SeedableRng;
+use rand::{Rng, SeedableRng};
 use regex::Regex;
 
 #[derive(Debug, Clone, PartialEq)]
