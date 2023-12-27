@@ -361,6 +361,20 @@ impl Value {
         
     }
 
+    pub fn get_string(self) -> Option<String> {
+        if let Self::StringLiteral(s) = self {
+            return Some(s);
+        }
+        None
+    }
+
+    pub fn is_string(self) -> bool {
+        if let Self::StringLiteral(_) = self {
+            true
+        }
+        false
+    }
+
     pub fn match_array(&self, regex: &Value, array: &Value) -> Option<Value> {
         match (self, regex, array) {
             (
@@ -370,11 +384,10 @@ impl Value {
             ) => {
                 let regex = Regex::new(regex_str).ok()?;
                 let matches: Vec<_> = array_map
-                    .values()
-                    .filter_map(|value| match value {
-                        Value::StringLiteral(s) => Some(s),
-                        _ => None,
-                    })
+                    .into_iter()
+                    .map(|(_, value)| **value)
+                    .filter(|v| v.is_string())
+                    .map(|v| v.get_string().unwrap())
                     .filter(|s| regex.is_match(s))
                     .collect();
 
