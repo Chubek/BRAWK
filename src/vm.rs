@@ -1,11 +1,17 @@
 use std::collections::HashMap;
-
 use std::io::prelude::*;
+use std::io::{Cursor, Read, Write};
+use std::sync::{Arc, Mutex};
 use std::ops::Not;
 use std::process::{Command, Stdio};
+use std::fs::File;
+
 
 use rand::{Rng, SeedableRng};
 use regex::Regex;
+
+type FileArc = Arc<Mutex<File>>;
+
 
 #[derive(Debug, Clone, PartialEq)]
 enum Value {
@@ -42,7 +48,7 @@ macro_rules! exit_err {
 impl Value {
     pub fn as_instruction(&self) -> usize {
         if let Self::Instruction(instruction) = self {
-            instruction
+            *instruction
         } else {
             exit_err!("Value is not an instruction");
         }
@@ -61,9 +67,6 @@ impl Value {
         }
         false
     }
-
-
-
 
     pub fn add(&self, other: &Value) -> Option<Value> {
         match (self, other) {
@@ -537,6 +540,7 @@ impl Value {
             }
         }
     }
+
 }
 
 impl Not for Value {
@@ -613,6 +617,7 @@ struct StackVM {
     stack: Vec<Value>,
     program: Vec<Instruction>,
     environ: HashMap<String, Option<Value>>,
+    cursors: HashMap<String, Cursor<FileArc>>,
     pc: usize,
     sp: usize,
 }
@@ -625,6 +630,7 @@ impl StackVM {
             pc: 0,
             sp: 0,
             environ: HashMap::new(),
+            cursors: HashMap::new(),
         }
     }
 
