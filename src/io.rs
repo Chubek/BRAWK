@@ -1,51 +1,44 @@
-use std::io::{self, BufRead, Write};
+use std::io::{self, BufRead, BufReader, BufWriter, Write};
 use std::fs::File;
+use std::collections::HashMap;
+use std::result::{Result, Result::Err};
 
 struct AwkIO {
-    input: Option<Box<dyn BufRead>>,
-    output: Box<dyn Write>,
+    inputs: HashMap<String, Option<Box<dyn BufRead>>>,
+    outputs: HashMap<String, Box<dyn Write>>,
 }
 
 impl AwkIO {
-    fn standard_io() -> Self {
+    pub fn new() -> Self {
         Self {
-            input: None,
-            output: Box::new(io::stdout()),
+            inputs: HashMap::new(),
+            outputs: HashMap::new(),
         }
     }
 
-    fn from_file(file_path: &str) -> io::Result<Self> {
-        let file = File::open(file_path)?;
-        Ok(Self {
-            input: Some(Box::new(io::BufReader::new(file))),
-            output: Box::new(io::stdout()),
-        })
-    }
-
-    fn read_line(&mut self) -> io::Result<String> {
-        let mut line = String::new();
-        let Self { input, .. } = self;
-
-        if input.is_none() {
-            io::stdin()
-                .read_line(&mut line)?;
+    pub fn add_input(&mut self, file_path: &String) -> Result<(), Err> {
+        if file_path == "-" {
+            self.inputs.insert("STDIN".to_string(), None);
+            Ok(())
         } else {
-            self.input
-                .as_mut()
-                .expect("Error getting input lock")
-                .read_line(&mut line)?;
+            let handle = File::open(file_path.clone())?;
+            let buffer = BufReader::new(handle);
+            self.inputs.insert(file_path.clone(), Some(Box::new(buffer)));
+            Ok(())
         }
-
-        Ok(line)
     }
 
-    fn write(&mut self, s: &str) -> io::Result<()> {
-        self.output.write_all(s.as_bytes())
+    pub fn add_output(&mut self, file_path: &String) -> Result<(), Err> {
+        if file_path == "-" {
+            self.outputs.insert("STDOUT".to_string(), Box::new(io::stdout()));
+            Ok(())
+        } else {
+            let handle = File::open(file_path.clone())?;
+            let buffer = BufWriter::new(handle);
+            self.outputs.insert(file_path.clone(), Box::new(buffer));
+        }
     }
 
-    fn flush(&mut self) -> io::Result<()> {
-        self.output.flush()
-    }
 }
 
 
