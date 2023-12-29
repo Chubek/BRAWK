@@ -40,6 +40,31 @@ macro_rules! exit_err {
 }
 
 impl Value {
+    pub fn as_instruction(&self) -> usize {
+        if let Self::Instruction(instruction) = self {
+            instruction
+        } else {
+            exit_err!("Value is not an instruction");
+        }
+    }
+
+    pub fn get_string(&self) -> Option<String> {
+        if let Self::StringLiteral(s) = self {
+            return Some(s.clone());
+        }
+        None
+    }
+
+    pub fn is_string(&self) -> bool {
+        if let Self::StringLiteral(_) = self {
+            return true;
+        }
+        false
+    }
+
+
+
+
     pub fn add(&self, other: &Value) -> Option<Value> {
         match (self, other) {
             (Value::Number(a), Value::Number(b)) => Some(Value::Number(a + b)),
@@ -273,14 +298,6 @@ impl Value {
         }
     }
 
-    pub fn as_instruction(self) -> usize {
-        if let Self::Instruction(instruction) = self {
-            instruction
-        } else {
-            exit_err!("Value is not an instruction");
-        }
-    }
-
     pub fn exec_command(self) -> Option<Value> {
         if let Self::Command(command, args) = self {
             let output = Command::new(command)
@@ -353,20 +370,6 @@ impl Value {
             }
             _ => None,
         }
-    }
-
-    pub fn get_string(&self) -> Option<String> {
-        if let Self::StringLiteral(s) = self {
-            return Some(s.clone());
-        }
-        None
-    }
-
-    pub fn is_string(&self) -> bool {
-        if let Self::StringLiteral(_) = self {
-            return true;
-        }
-        false
     }
 
     pub fn match_array(&self, regex: &Value, array: &Value) -> Option<Value> {
