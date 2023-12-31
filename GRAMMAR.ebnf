@@ -1,0 +1,141 @@
+awk_program       ::= { pattern_action_rule | function_definition }
+
+pattern_action_rule
+                  ::= [ pattern ] action
+
+pattern           ::= pattern_expression
+                  | BEGIN
+                  | END
+
+pattern_expression
+                  ::= expression
+
+action            ::= '{' statement_list '}'
+                  | statement
+
+function_definition
+                  ::= FUNC identifier '(' [ parameter_list ] ')' '{' statement_list '}'
+
+parameter_list    ::= identifier { ',' identifier }
+
+statement_list    ::= statement { ';' statement }
+
+statement         ::= expression
+                  | if_statement
+                  | while_statement
+                  | for_statement
+                  | do_while_statement
+                  | print_statement
+                  | printf_statement
+                  | next_statement
+                  | exit_statement
+                  | return_statement
+                  | delete_statement
+                  | variable_assignment
+
+if_statement      ::= IF '(' expression ')' statement [ ELSE statement ]
+
+while_statement   ::= WHILE '(' expression ')' statement
+
+for_statement     ::= FOR '(' [ for_initializer ] ';' [ condition ] ';' [ for_iterator ] ')' statement
+
+do_while_statement
+                  ::= DO statement WHILE '(' expression ')' ';'
+
+for_initializer   ::= variable_assignment
+                  | expression
+
+for_iterator     ::= expression
+
+print_statement   ::= PRINT [ expression_list ] [ redirection ]
+
+printf_statement  ::= PRINTF '(' format_string ',' [ expression_list ] ')' [ redirection ]
+
+next_statement    ::= NEXT
+
+exit_statement    ::= EXIT [ expression ]
+
+return_statement  ::= RETURN [ expression ]
+
+delete_statement  ::= DELETE array_element
+
+variable_assignment
+                  ::= identifier '=' expression
+
+array_element     ::= identifier '[' expression ']'
+
+expression_list   ::= expression { ',' expression }
+
+expression        ::= logical_or_expression
+
+logical_or_expression
+                  ::= logical_and_expression { '||' logical_and_expression }
+
+logical_and_expression
+                  ::= inclusive_or_expression { '&&' inclusive_or_expression }
+
+inclusive_or_expression
+                  ::= exclusive_or_expression { '|' exclusive_or_expression }
+
+exclusive_or_expression
+                  ::= and_expression { '^' and_expression }
+
+and_expression    ::= equality_expression { '&' equality_expression }
+
+equality_expression
+                  ::= relational_expression { ( '==' | '!=' ) relational_expression }
+
+relational_expression
+                  ::= shift_expression { ( '<' | '>' | '<=' | '>=' ) shift_expression }
+
+shift_expression  ::= additive_expression { ( '<<' | '>>' ) additive_expression }
+
+additive_expression
+                  ::= multiplicative_expression { ( '+' | '-' ) multiplicative_expression }
+
+multiplicative_expression
+                  ::= primary_expression { ( '*' | '/' | '%' ) primary_expression }
+
+primary_expression
+                  ::= variable
+                  | constant
+                  | function_call
+                  | '(' expression ')'
+
+variable          ::= identifier
+
+constant          ::= integer_literal
+                  | floating_point_literal
+                  | string_literal
+
+function_call     ::= identifier '(' [ argument_list ] ')'
+
+argument_list     ::= expression { ',' expression }
+
+redirection      ::= '>'
+                  | '>>'
+                  | '|'
+                  | '2>'
+                  | '2>>'
+                  | '&>'
+                  | '&>>'
+                  | '|&'
+                  | '<'
+                  | '<<<'
+                  | '|<'
+
+integer_literal   ::= digit { digit }
+
+floating_point_literal
+                  ::= digit { digit } '.' digit { digit } [ ( 'e' | 'E' ) [ '+' | '-' ] digit { digit } ]
+
+string_literal    ::= '"' { character } '"'
+
+character        ::= any_character_except_double_quote
+
+identifier       ::= letter { letter | digit | "_" }
+
+letter           ::= "a" | "b" | ... | "z" | "A" | "B" | ... | "Z"
+
+digit            ::= "0" | "1" | "2" | "3" | "4" | "5 | "6" | "7" | "8" | "9"
+"
