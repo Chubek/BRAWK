@@ -9,6 +9,8 @@ use std::fs::File;
 use rand::{Rng, SeedableRng};
 use regex::Regex;
 
+use crate::awkio::AwkIO;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Number(i32),
@@ -23,9 +25,9 @@ pub enum Value {
     ExecResult(String, std::process::ExitStatus),
     ArrayLiteral(HashMap<String, Box<Value>>),
     FilePath(String),
-    PrintExpr(Vec<Value>),
-    PrintFormattedExpr(String, Vec<Value>),
+    AwkIO(AwkIO),
 }
+
 
 impl Value {
     pub fn as_instruction(&self) -> usize {
@@ -520,6 +522,142 @@ impl Value {
             _ => {
                 exit_err!("Invalid usage of sub function");
             }
+        }
+    }
+    
+    pub fn concatenate(&self, other: &Value) -> Option<Value> {
+        match (self, other) {
+            (Value::StringLiteral(a), Value::StringLiteral(b)) => {
+                Some(Value::StringLiteral(a.clone() + b))
+            }
+            _ => None,
+        }
+    }
+
+    pub fn length(&self) -> Option<Value> {
+        match self {
+            Value::StringLiteral(s) => Some(Value::Number(s.len() as i32)),
+            Value::ArrayLiteral(map) => Some(Value::Number(map.len() as i32)),
+            _ => None,
+        }
+    }
+
+    pub fn substring(&self, start: i32, length: i32) -> Option<Value> {
+        match self {
+            Value::StringLiteral(s) => {
+                let start = start as usize;
+                let end = (start + length as usize).min(s.len());
+                Some(Value::StringLiteral(s[start..end].to_string()))
+            }
+            _ => None,
+        }
+    }
+
+    pub fn index_of(&self, target: &Value) -> Option<Value> {
+        match (self, target) {
+            (Value::StringLiteral(source), Value::StringLiteral(pattern)) => {
+                if let Some(position) = source.find(pattern) {
+                    Some(Value::Number(position as i32 + 1))
+                } else {
+                    Some(Value::Number(0))
+                }
+            }
+            _ => None,
+        }
+    }
+
+    pub fn join(&self, separator: &Value, array: &Value) -> Option<Value> {
+        match (self, separator, array) {
+            (
+                Value::StringLiteral(separator_str),
+                _,
+                Value::ArrayLiteral(array_map),
+            ) => {
+                let values: Vec<_> = array_map
+                    .values()
+                    .map(|v| v.get_string().unwrap_or_default())
+                    .collect();
+                Some(Value::StringLiteral(values.join(separator_str)))
+            }
+            _ => None,
+        }
+    }
+
+    pub fn to_lower(&self) -> Option<Value> {
+        match self {
+            Value::StringLiteral(s) => Some(Value::StringLiteral(s.to_lowercase())),
+            _ => None,
+        }
+    }
+
+    pub fn to_upper(&self) -> Option<Value> {
+        match self {
+            Value::StringLiteral(s) => Some(Value::StringLiteral(s.to_uppercase())),
+            _ => None,
+        }
+    }
+
+    pub fn cosine(&self) -> Option<Value> {
+        match self {
+            Value::Number(n) => Some(Value::Float((n * PI as i32).cos())),
+            Value::Float(f) => Some(Value::Float(f.cos())),
+            _ => None,
+        }
+    }
+
+    pub fn sine(&self) -> Option<Value> {
+        match self {
+            Value::Number(n) => Some(Value::Float((n * PI as i32).sin())),
+            Value::Float(f) => Some(Value::Float(f.sin())),
+            _ => None,
+        }
+    }
+
+    pub fn tangent(&self) -> Option<Value> {
+        match self {
+            Value::Number(n) => Some(Value::Float((n * PI as i32).tan())),
+            Value::Float(f) => Some(Value::Float(f.tan())),
+            _ => None,
+        }
+    }
+
+    pub fn arctangent(&self) -> Option<Value> {
+        match self {
+            Value::Number(n) => Some(Value::Float((n * PI as i32).atan())),
+            Value::Float(f) => Some(Value::Float(f.atan())),
+            _ => None,
+        }
+    }
+
+    pub fn exponential(&self) -> Option<Value> {
+        match self {
+            Value::Number(n) => Some(Value::Float(E.powi(*n))),
+            Value::Float(f) => Some(Value::Float(f64::exp(*f))),
+            _ => None,
+        }
+    }
+
+    pub fn logarithm(&self) -> Option<Value> {
+        match self {
+            Value::Number(n) => Some(Value::Float(n.ln())),
+            Value::Float(f) => Some(Value::Float(f64::ln(*f))),
+            _ => None,
+        }
+    }
+
+    pub fn square_root(&self) -> Option<Value> {
+        match self {
+            Value::Number(n) if *n >= 0 => Some(Value::Float(n.sqrt())),
+            Value::Float(f) if *f >= 0.0 => Some(Value::Float(f64::sqrt(*f))),
+            _ => None,
+        }
+    }
+
+    pub fn int(&self) -> Option<Value> {
+        match self {
+            Value::Number(n) => Some(Value::Number(*n)),
+            Value::Float(f) => Some(Value::Number(f64::trunc(*f) as i32)),
+            _ => None,
         }
     }
 
