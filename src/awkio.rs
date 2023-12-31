@@ -8,6 +8,7 @@ struct AwkIO {
     inputs: HashMap<String, Option<Box<dyn BufRead>>>,
     outputs: HashMap<String, Box<dyn Write>>,
     fields: Vec<String>,
+    line: String,
 }
 
 impl AwkIO {
@@ -16,6 +17,7 @@ impl AwkIO {
             inputs: HashMap::new(),
             outputs: HashMap::new(),
             fields: vec![],
+            line: String::new(),
         }
     }
 
@@ -49,34 +51,33 @@ impl AwkIO {
         &mut self,
         file_path: &str,
         delimiter: char,
-    ) -> Result<Option<String>> {
+    ) -> Result<usize> {
         if let Some(input) = self.inputs.get_mut(file_path) {
-            let mut line = String::new();
-            match input {
-                Some(input) => input.read_line(&mut line)?,
-                None => io::stdin().read_line(&mut line)?,
+            let line_len: usize = match input {
+                Some(input) => input.read_line(&mut self.line)?,
+                None => io::stdin().read_line(&mut self.line)?,
             }
 
-            if !line.is_empty() {
+            if !self.line.is_empty() {
                 self.fields = line
                     .trim()
                     .split(delimiter)
                     .map(|s| s.to_string())
                     .collect();
-                Ok(Some(line))
+                Ok(line_len)
             } else {
-                Ok(None)
+                Ok(0)
             }
         } else {
-            Ok(None)
+            Ok(0)
         }
     }
 
     pub fn read_from_input(&mut self, file_path: &str, buffer: &mut String) -> Result<usize> {
         if let Some(input) = self.inputs.get_mut(file_path) {
             match input {
-                Some(input) => input.read_line(buffer)?,
-                None => io::stdin().read_line(buffer)?,
+                Some(input) => input.read_line(buffer),
+                None => io::stdin().read_line(buffer),
             }
         } else {
             Ok(0)
@@ -94,8 +95,8 @@ impl AwkIO {
 
     pub fn read_until_regex(&mut self, file_path: &str, pattern: Regex) -> Result<usize> {
         if let Some(input) = self.inputs.get_mut(file_path) {
+            self.line.clear();
             let mut read_buffer = String::new();
-            let mut total_buffer = String::new();
             let mut delimiter_found = false;
             let mut bytes_read = 0;
 
@@ -109,9 +110,9 @@ impl AwkIO {
                     break;
                 }
 
-                total_buffer.push_str(&read_buffer);
+                self.line.push_str(&read_buffer);
 
-                if pattern.is_match(&total_buffer) {
+                if pattern.is_match(&self.line) {
                     delimiter_found = true;
                 }
 
