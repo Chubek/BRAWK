@@ -126,4 +126,12 @@ impl AwkIO {
             Ok(0)
         }
     }
+
+    pub fn get_field(&self, index: usize) -> String {
+        if index > 0 && index <= self.fields.len() {
+            self.fields[index - 1].clone()
+        } else {
+            String::new()
+        }
+    }
 }
