@@ -1,15 +1,17 @@
 use std::collections::HashMap;
+use std::fs::File;
 use std::io::prelude::*;
 use std::io::{Cursor, Read, Write};
-use std::sync::{Arc, Mutex};
 use std::ops::Not;
 use std::process::{Command, Stdio};
-use std::fs::File;
+use std::sync::{Arc, Mutex};
+use std::f64::consts::PI;
 
 use rand::{Rng, SeedableRng};
 use regex::Regex;
 
 use crate::awkio::AwkIO;
+use crate::exit_err;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
@@ -28,7 +30,6 @@ pub enum Value {
     AwkIO(AwkIO),
 }
 
-
 impl Value {
     pub fn get_string(&self) -> Option<String> {
         if let Self::StringLiteral(s) = self {
@@ -42,6 +43,19 @@ impl Value {
             return true;
         }
         false
+    }
+
+    pub fn is_truthy(&self) -> bool {
+        match self {
+            Value::Number(n) => *n > 0,
+            Value::StringLiteral(s) => !s.is_empty(),
+            Value::Bool(b) => *b,
+            _ => false,
+        }
+    }
+
+    pub fn is_falsy(&self) -> bool {
+        !self.is_truthy()
     }
 
     pub fn add(&self, other: &Value) -> Option<Value> {
@@ -120,20 +134,7 @@ impl Value {
         }
     }
 
-    pub fn is_truthy(&self) -> bool {
-        match self {
-            Value::Number(n) => *n > 0,
-            Value::StringLiteral(s) => !s.is_empty(),
-            Value::Bool(b) => *b,
-            _ => false,
-        }
-    }
-
-    pub fn is_falsy(&self) -> bool {
-        !self.is_truthy()
-    }
-
-    pub fn not_equals(&self, other: &Value) -> OptionValue> {
+    pub fn not_equals(&self, other: &Value) -> Option<Value> {
         Some(Value::Bool(self.equals(other).unwrap().is_falsy()))
     }
 
@@ -217,9 +218,9 @@ impl Value {
         }
     }
 
-    pub fn bitwise_not(self) -> Option<Value> {
+    pub fn bitwise_not(&self) -> Option<Value> {
         match self {
-            Value::Number(n) => Some(Value::Number(n)),
+            Value::Number(n) => Some(Value::Number(!n)),
             _ => None,
         }
     }
@@ -227,11 +228,11 @@ impl Value {
     pub fn make_negative(&mut self) -> Option<()> {
         match self {
             Value::Number(ref mut n) => {
-                *n = -(*n);
+                *n = -*n;
                 Some(())
             }
             Value::Float(ref mut f) => {
-                *f = -(*f);
+                *f = -*f;
                 Some(())
             }
             _ => None,
@@ -277,8 +278,8 @@ impl Value {
         }
     }
 
-    pub fn exec_command(self) -> Option<Value> {
-        if let Self::Command(command, args) = self {
+    pub fn exec_command(&self) -> Option<Value> {
+        if let Value::Command(command, args) = self {
             let output = Command::new(command)
                 .args(args)
                 .stdout(Stdio::piped())
@@ -292,9 +293,9 @@ impl Value {
                         .take()
                         .unwrap()
                         .read_to_string(&mut buffer)
-                        .unwrap();
+                        .ok();
 
-                    let status = child.wait().unwrap();
+                    let status = child.wait().ok()?;
 
                     Some(Value::ExecResult(buffer, status))
                 }
@@ -354,14 +355,13 @@ impl Value {
     pub fn match_array(&self, regex: &Value, array: &Value) -> Option<Value> {
         match (self, regex, array) {
             (
-                Value::StringLiteral(_input),
-                Value::StringLiteral(regex_str),
+                Value::StringLiteral(_),
+                Value::RegexPattern(regex_str),
                 Value::ArrayLiteral(array_map),
             ) => {
                 let regex = Regex::new(regex_str).ok()?;
                 let matches: Vec<_> = array_map
-                    .iter()
-                    .map(|(_, value)| value.clone())
+                    .values()
                     .filter(|v| v.is_string())
                     .map(|v| v.get_string().unwrap())
                     .filter(|s| regex.is_match(s))
@@ -463,15 +463,6 @@ impl Value {
         }
     }
 
-    pub fn length(&self) -> Option<Value> {
-        match self {
-            Value::StringLiteral(s) => Some(Value::Number(s.len() as i32)),
-            _ => {
-                exit_err!("Invalid usage of length function");
-            }
-        }
-    }
-
     pub fn split(&self, regex: &Value, array: &mut Value) -> Option<Value> {
         match (self, regex, array) {
             (
@@ -516,7 +507,7 @@ impl Value {
             }
         }
     }
-    
+
     pub fn concatenate(&self, other: &Value) -> Option<Value> {
         match (self, other) {
             (Value::StringLiteral(a), Value::StringLiteral(b)) => {
@@ -560,11 +551,7 @@ impl Value {
 
     pub fn join(&self, separator: &Value, array: &Value) -> Option<Value> {
         match (self, separator, array) {
-            (
-                Value::StringLiteral(separator_str),
-                _,
-                Value::ArrayLiteral(array_map),
-            ) => {
+            (Value::StringLiteral(separator_str), _, Value::ArrayLiteral(array_map)) => {
                 let values: Vec<_> = array_map
                     .values()
                     .map(|v| v.get_string().unwrap_or_default())
@@ -652,7 +639,6 @@ impl Value {
             _ => None,
         }
     }
-
 }
 
 impl Not for Value {
@@ -661,9 +647,9 @@ impl Not for Value {
     fn not(self) -> Self::Output {
         match self {
             Value::Bool(b) => Value::Bool(!b),
-            Value::Number(i) => Value::Number(!i),
+            Value::Number(i) => Value::Bool(i == 0),
             _ => {
-                panic!(
+                exit_err!(
                     "Cannot apply logical NOT to a non-boolean value: {:?}",
                     self
                 );
