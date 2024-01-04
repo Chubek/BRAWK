@@ -36,6 +36,8 @@ enum Instruction {
     Decr,
     Pos,
     Neg,
+    Begin,
+    End,
     EreMatch,
     EreNonMatch,
     BitwiseAnd,
@@ -52,6 +54,41 @@ enum Instruction {
     CloseStream,
     AppendOut,
     RegexMatch,
+    Concatenate,
+    Length,
+    Substring,
+    IndexOf,
+    Split,
+    Join,
+    ToLower,
+    ToUpper,
+    FormatTime,
+    FormatNumber,
+    Sin,
+    Cos,
+    Tan,
+    Asin,
+    Acos,
+    Atan,
+    Log,
+    Log10,
+    Exp,
+    Sqrt,
+    Int,
+    Substr,
+    Sprintf,
+    Match,
+    Sub,
+    Gsub,
+    Rindex,
+    Srand,
+    Rand,
+    And,
+    Or,
+    Not,
+    Next,
+    NextFile,
+    Exit,
 }
 
 #[derive(Debug, Clone)]
@@ -59,7 +96,6 @@ struct StackVM {
     stack: Vec<Value>,
     program: Vec<Instruction>,
     environ: HashMap<String, Option<Value>>,
-    cursors: HashMap<String, Cursor<FileArc>>,
     pc: usize,
     sp: usize,
 }
@@ -72,7 +108,6 @@ impl StackVM {
             pc: 0,
             sp: 0,
             environ: HashMap::new(),
-            cursors: HashMap::new(),
         }
     }
 
@@ -96,14 +131,6 @@ impl StackVM {
         if let Some(Value::Instruction(target)) = self.stack.pop() {
             self.sp = target;
         }
-    }
-
-    pub fn exec_return(&mut self) {
-        self.sp = self
-            .stack
-            .pop()
-            .unwrap_or(Value::Instruction(0))
-            .as_instruction();
     }
 
     pub fn exec_load_variable(&mut self) {

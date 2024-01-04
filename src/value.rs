@@ -30,14 +30,6 @@ pub enum Value {
 
 
 impl Value {
-    pub fn as_instruction(&self) -> usize {
-        if let Self::Instruction(instruction) = self {
-            *instruction
-        } else {
-            exit_err!("Value is not an instruction");
-        }
-    }
-
     pub fn get_string(&self) -> Option<String> {
         if let Self::StringLiteral(s) = self {
             return Some(s.clone());
