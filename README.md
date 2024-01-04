@@ -1,6 +1,13 @@
-# RustyAWK: Implementation of AWK in Rust
+# BRAWK - AWK Language in Rust
 
-This is heavily WIP. I am currently implementing the VM. Please visit my other two WIP languages. 
+BRAWK is a Rust implementation of the AWK programming language. It provides a fast and efficient way to process text files and streams by specifying patterns and actions.
 
-https://github.com/Chubek/Kaibash
-https://github.com/Chubek/Xtella
+## Features
+
+- **AWK Compatibility:** BRAWK aims to be compatible with the AWK language, providing a familiar environment for AWK users.
+
+- **Rust Performance:** Leveraging the performance and memory safety of Rust, BRAWK aims to be efficient and reliable for text processing tasks.
+
+## Progress
+
+The stack VM is currently being implemented.
