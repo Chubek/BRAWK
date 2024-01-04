@@ -56,7 +56,7 @@ impl AwkIO {
             let line_len: usize = match input {
                 Some(input) => input.read_line(&mut self.line)?,
                 None => io::stdin().read_line(&mut self.line)?,
-            }
+            };
 
             if !self.line.is_empty() {
                 self.fields = line
