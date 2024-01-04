@@ -1,5 +1,6 @@
 [package]
-name = "rustyawk"
+name = "brawk"
+description="AWK implemented in Rust"
 version = "0.1.0"
 edition = "2021"
 
