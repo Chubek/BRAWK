@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 use std::io::prelude::*;
+use std::f64::consts::E;
+
 use crate::value::Value;
+use crate::exit_err;
 
 #[derive(Debug, Clone)]
 enum Instruction {
