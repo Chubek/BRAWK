@@ -1,11 +1,11 @@
 use std::collections::HashMap;
-use std::fs::File;
+
 use std::io::prelude::*;
-use std::io::{Cursor, Read, Write};
+use std::io::{Read, Write};
 use std::ops::Not;
 use std::process::{Command, Stdio};
-use std::sync::{Arc, Mutex};
-use std::f64::consts::PI;
+
+use std::f64::consts::{PI, E};
 
 use rand::{Rng, SeedableRng};
 use regex::Regex;
@@ -15,7 +15,7 @@ use crate::exit_err;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
-    Number(i32),
+    Number(i64),
     Float(f64),
     Instruction(usize),
     Identifier(String),
@@ -452,7 +452,7 @@ impl Value {
         match (self, target) {
             (Value::StringLiteral(source), Value::StringLiteral(pattern)) => {
                 if let Some(position) = source.find(pattern) {
-                    Some(Value::Number(position as i32 + 1))
+                    Some(Value::Number(position as i64 + 1))
                 } else {
                     Some(Value::Number(0))
                 }
@@ -477,7 +477,7 @@ impl Value {
                         array_map.insert(index.to_string(), Box::new(Value::StringLiteral(value)));
                     }
 
-                    Some(Value::Number(split_values.len() as i32))
+                    Some(Value::Number(split_values.len() as i64))
                 } else {
                     exit_err!("Invalid regular expression in split function");
                 }
@@ -519,8 +519,8 @@ impl Value {
 
     pub fn length(&self) -> Option<Value> {
         match self {
-            Value::StringLiteral(s) => Some(Value::Number(s.len() as i32)),
-            Value::ArrayLiteral(map) => Some(Value::Number(map.len() as i32)),
+            Value::StringLiteral(s) => Some(Value::Number(s.len() as i64)),
+            Value::ArrayLiteral(map) => Some(Value::Number(map.len() as i64)),
             _ => None,
         }
     }
@@ -540,7 +540,7 @@ impl Value {
         match (self, target) {
             (Value::StringLiteral(source), Value::StringLiteral(pattern)) => {
                 if let Some(position) = source.find(pattern) {
-                    Some(Value::Number(position as i32 + 1))
+                    Some(Value::Number(position as i64 + 1))
                 } else {
                     Some(Value::Number(0))
                 }
@@ -578,7 +578,7 @@ impl Value {
 
     pub fn cosine(&self) -> Option<Value> {
         match self {
-            Value::Number(n) => Some(Value::Float((n * PI as i32).cos())),
+            Value::Number(n) => Some(Value::Number((((*n as f64) * PI).cos()) as i64)),
             Value::Float(f) => Some(Value::Float(f.cos())),
             _ => None,
         }
@@ -586,7 +586,7 @@ impl Value {
 
     pub fn sine(&self) -> Option<Value> {
         match self {
-            Value::Number(n) => Some(Value::Float((n * PI as i32).sin())),
+            Value::Number(n) => Some(Value::Number((((*n as f64) * PI).sin()) as i64)),
             Value::Float(f) => Some(Value::Float(f.sin())),
             _ => None,
         }
@@ -594,7 +594,7 @@ impl Value {
 
     pub fn tangent(&self) -> Option<Value> {
         match self {
-            Value::Number(n) => Some(Value::Float((n * PI as i32).tan())),
+            Value::Number(n) => Some(Value::Number((((*n as f64) * PI).tan()) as i64)),
             Value::Float(f) => Some(Value::Float(f.tan())),
             _ => None,
         }
@@ -602,7 +602,7 @@ impl Value {
 
     pub fn arctangent(&self) -> Option<Value> {
         match self {
-            Value::Number(n) => Some(Value::Float((n * PI as i32).atan())),
+            Value::Number(n) => Some(Value::Number((((*n as f64) * PI).atan()) as i64)),
             Value::Float(f) => Some(Value::Float(f.atan())),
             _ => None,
         }
@@ -610,7 +610,7 @@ impl Value {
 
     pub fn exponential(&self) -> Option<Value> {
         match self {
-            Value::Number(n) => Some(Value::Float(E.powi(*n))),
+            Value::Number(n) => Some(Value::Number(E.powf(*n as f64) as i64)),
             Value::Float(f) => Some(Value::Float(f64::exp(*f))),
             _ => None,
         }
@@ -618,7 +618,7 @@ impl Value {
 
     pub fn logarithm(&self) -> Option<Value> {
         match self {
-            Value::Number(n) => Some(Value::Float(n.ln())),
+            Value::Number(n) => Some(Value::Number((*n as f64).ln() as i64)),
             Value::Float(f) => Some(Value::Float(f64::ln(*f))),
             _ => None,
         }
@@ -626,7 +626,7 @@ impl Value {
 
     pub fn square_root(&self) -> Option<Value> {
         match self {
-            Value::Number(n) if *n >= 0 => Some(Value::Float(n.sqrt())),
+            Value::Number(n) if *n >= 0 => Some(Value::Number((*n as f64).sqrt() as i64)),
             Value::Float(f) if *f >= 0.0 => Some(Value::Float(f64::sqrt(*f))),
             _ => None,
         }
@@ -635,7 +635,7 @@ impl Value {
     pub fn int(&self) -> Option<Value> {
         match self {
             Value::Number(n) => Some(Value::Number(*n)),
-            Value::Float(f) => Some(Value::Number(f64::trunc(*f) as i32)),
+            Value::Float(f) => Some(Value::Number(f64::trunc(*f) as i64)),
             _ => None,
         }
     }
