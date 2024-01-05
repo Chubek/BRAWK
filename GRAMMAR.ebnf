@@ -4,8 +4,8 @@ pattern_action_rule
                   ::= [ pattern ] action
 
 pattern           ::= pattern_expression
-                  | BEGIN
-                  | END
+                  | "BEGIN"
+                  | "END"
 
 pattern_expression
                   ::= expression
@@ -14,7 +14,7 @@ action            ::= '{' statement_list '}'
                   | statement
 
 function_definition
-                  ::= FUNC identifier '(' [ parameter_list ] ')' '{' statement_list '}'
+                  ::= "function" identifier '(' [ parameter_list ] ')' '{' statement_list '}'
 
 parameter_list    ::= identifier { ',' identifier }
 
@@ -35,29 +35,29 @@ statement         ::= expression
 
 if_statement      ::= IF '(' expression ')' statement [ ELSE statement ]
 
-while_statement   ::= WHILE '(' expression ')' statement
+while_statement   ::= "while" '(' expression ')' statement
 
-for_statement     ::= FOR '(' [ for_initializer ] ';' [ condition ] ';' [ for_iterator ] ')' statement
+for_statement     ::= "for" '(' [ for_initializer ] ';' [ condition ] ';' [ for_iterator ] ')' statement
 
 do_while_statement
-                  ::= DO statement WHILE '(' expression ')' ';'
+                  ::= "do" statement "while" '(' expression ')' ';'
 
 for_initializer   ::= variable_assignment
                   | expression
 
 for_iterator     ::= expression
 
-print_statement   ::= PRINT [ expression_list ] [ redirection ]
+print_statement   ::= "print" [ expression_list ] [ redirection ]
 
-printf_statement  ::= PRINTF '(' format_string ',' [ expression_list ] ')' [ redirection ]
+printf_statement  ::= "printf" '(' format_string ',' [ expression_list ] ')' [ redirection ]
 
-next_statement    ::= NEXT
+next_statement    ::= "next"
 
-exit_statement    ::= EXIT [ expression ]
+exit_statement    ::= "exit" [ expression ]
 
-return_statement  ::= RETURN [ expression ]
+return_statement  ::= "return" [ expression ]
 
-delete_statement  ::= DELETE array_element
+delete_statement  ::= "delete" array_element
 
 variable_assignment
                   ::= identifier '=' expression
