@@ -1,6 +1,7 @@
 mod value;
 mod machine;
 mod awkio;
+mod parser;
 
 #[macro_export]
 macro_rules! exit_err {
