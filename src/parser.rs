@@ -43,7 +43,7 @@ enum AstNode {
     PrimaryExpression(Box<AstNode>),
     Variable(String),
     Constant(Constant),
-    FunctionCall(String, Option<Vec<AstNode>>),
+    FunctionCall(String, Box<Option<AstNode>>),
     ArgumentList(Vec<AstNode>),
     Redirection(String),
     IntegerLiteral(String),
@@ -123,7 +123,7 @@ impl<'a> Lexer<'a> {
     fn consume_digit_sequence(&mut self) -> String {
         let start = self.position;
         while let Some(ch) = self.peek() {
-            if ch.is_digit(10) {
+            if ch.is_ascii_digit() {
                 self.advance();
             } else {
                 break;
@@ -588,11 +588,14 @@ fn parse_equality_expression(lexer: &mut Lexer) -> AstNode {
         lexer.advance();
         lexer.advance();
 
+        let first_operand = operands.pop().unwrap();
+
         operands.push(AstNode::EqualityExpression(
-            Box::new(operands.pop().unwrap()),
+            Box::new(first_operand),
             lexer.previous_lexeme().to_string(),
             Box::new(parse_relational_expression(lexer)),
         ));
+
     }
 
     if operands.len() == 1 {
@@ -621,9 +624,11 @@ fn parse_relational_expression(lexer: &mut Lexer) -> AstNode {
         if matches!(lexer.peek(), Some('=') | Some('>')) {
             lexer.advance();
         }
+        
+        let first_operand = operands.pop().unwrap();
 
         operands.push(AstNode::RelationalExpression(
-            Box::new(operands.pop().unwrap()),
+            Box::new(first_operand),
             operator,
             Box::new(parse_shift_expression(lexer)),
         ));
@@ -655,8 +660,10 @@ fn parse_shift_expression(lexer: &mut Lexer) -> AstNode {
             lexer.advance();
         }
 
+        let first_operand = operands.pop().unwrap();
+
         operands.push(AstNode::ShiftExpression(
-            Box::new(operands.pop().unwrap()),
+            Box::new(first_operand),
             operator,
             Box::new(parse_additive_expression(lexer)),
         ));
@@ -684,8 +691,10 @@ fn parse_additive_expression(lexer: &mut Lexer) -> AstNode {
 
         lexer.advance();
 
+        let first_operand = operands.pop().unwrap();
+
         operands.push(AstNode::AdditiveExpression(
-            Box::new(operands.pop().unwrap()),
+            Box::new(first_operand),
             operator,
             Box::new(parse_multiplicative_expression(lexer)),
         ));
@@ -714,8 +723,10 @@ fn parse_multiplicative_expression(lexer: &mut Lexer) -> AstNode {
 
         lexer.advance();
 
+        let first_operand = operands.pop().unwrap();
+
         operands.push(AstNode::MultiplicativeExpression(
-            Box::new(operands.pop().unwrap()),
+            Box::new(first_operand),
             operator,
             Box::new(parse_primary_expression(lexer)),
         ));
@@ -738,7 +749,7 @@ fn parse_primary_expression(lexer: &mut Lexer) -> AstNode {
         parse_variable(lexer)
     } else if lexer.peek().unwrap().is_alphabetic() {
         parse_variable(lexer)
-    } else if lexer.peek().unwrap().is_digit(10) {
+    } else if lexer.peek().unwrap().is_ascii_digit() {
         parse_constant(lexer)
     } else if lexer.peek() == Some('"') {
         parse_string_literal(lexer)
@@ -758,7 +769,7 @@ fn parse_variable(lexer: &mut Lexer) -> AstNode {
 }
 
 fn parse_constant(lexer: &mut Lexer) -> AstNode {
-    if lexer.peek().unwrap().is_digit(10) {
+    if lexer.peek().unwrap().is_ascii_digit() {
         AstNode::Constant(Constant::IntegerLiteral(parse_integer_literal(lexer)))
     } else if lexer.peek() == Some('.') {
         AstNode::Constant(Constant::FloatingPointLiteral(
@@ -792,7 +803,7 @@ fn parse_function_call(lexer: &mut Lexer) -> AstNode {
     };
     assert_eq!(lexer.peek(), Some(')'));
     lexer.advance();
-    AstNode::FunctionCall(identifier, argument_list)
+    AstNode::FunctionCall(identifier, Box::new(argument_list))
 }
 
 fn parse_argument_list(lexer: &mut Lexer) -> AstNode {
