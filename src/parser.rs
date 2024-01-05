@@ -34,7 +34,7 @@ enum AstNode {
     LogicalAndExpression(Box<AstNode>, Vec<AstNode>),
     InclusiveOrExpression(Box<AstNode>, Vec<AstNode>),
     ExclusiveOrExpression(Box<AstNode>, Vec<AstNode>),
-    AndExpression(Box<AstNode>, Vec<Box<AstNode>>),
+    AndExpression(Box<AstNode>, Vec<AstNode>),
     EqualityExpression(Box<AstNode>, String, Box<AstNode>),
     RelationalExpression(Box<AstNode>, String, Box<AstNode>),
     ShiftExpression(Box<AstNode>, String, Box<AstNode>),
@@ -43,8 +43,8 @@ enum AstNode {
     PrimaryExpression(Box<AstNode>),
     Variable(String),
     Constant(Constant),
-    FunctionCall(String, Vec<Box<AstNode>>),
-    ArgumentList(Vec<Box<AstNode>>),
+    FunctionCall(String, Option<Vec<AstNode>>),
+    ArgumentList(Vec<AstNode>),
     Redirection(String),
     IntegerLiteral(String),
     FloatingPointLiteral(String),
@@ -77,6 +77,10 @@ impl<'a> Lexer<'a> {
         if let Some(ch) = self.input.chars().nth(self.position) {
             self.position += ch.len_utf8();
         }
+    }
+
+    fn previous_lexeme(&self) -> &'a str {
+        &self.input[..self.position]
     }
 
     fn skip_whitespace(&mut self) {
@@ -512,17 +516,21 @@ fn parse_logical_or_expression(lexer: &mut Lexer) -> AstNode {
     }
 }
 
-
 fn parse_logical_and_expression(lexer: &mut Lexer) -> AstNode {
     let mut operands = vec![parse_inclusive_or_expression(lexer)];
-    while lexer.peek() == Some('&') && lexer.advance() == Some('&') {
+
+    while lexer.peek() == Some('&') {
         lexer.advance();
         operands.push(parse_inclusive_or_expression(lexer));
     }
+
     if operands.len() == 1 {
         operands.pop().unwrap()
     } else {
-        AstNode::LogicalAndExpression(Box::new(operands.remove(0)), operands)
+        AstNode::LogicalAndExpression(
+            Box::new(operands.remove(0)),
+            operands,
+        )
     }
 }
 
@@ -554,10 +562,18 @@ fn parse_exclusive_or_expression(lexer: &mut Lexer) -> AstNode {
 
 fn parse_and_expression(lexer: &mut Lexer) -> AstNode {
     let mut operands = vec![parse_equality_expression(lexer)];
-    while lexer.peek() == Some('&') && lexer.advance() == Some('&') {
+
+    while lexer.peek() == Some('&') {
         lexer.advance();
-        operands.push(parse_equality_expression(lexer));
+
+        if lexer.peek() == Some('&') {
+            lexer.advance();
+            operands.push(parse_equality_expression(lexer));
+        } else {
+            break;
+        }
     }
+
     if operands.len() == 1 {
         operands.pop().unwrap()
     } else {
@@ -567,41 +583,42 @@ fn parse_and_expression(lexer: &mut Lexer) -> AstNode {
 
 fn parse_equality_expression(lexer: &mut Lexer) -> AstNode {
     let mut operands = vec![parse_relational_expression(lexer)];
-    
+
     while lexer.peek() == Some('=') || lexer.peek() == Some('!') {
-        let operator = lexer.advance().unwrap().to_string(); 
-        lexer.advance(); 
-        
+        lexer.advance();
+        lexer.advance();
+
         operands.push(AstNode::EqualityExpression(
             Box::new(operands.pop().unwrap()),
-            operator,
+            lexer.previous_lexeme().to_string(),
             Box::new(parse_relational_expression(lexer)),
         ));
     }
-    
+
     if operands.len() == 1 {
         operands.pop().unwrap()
     } else {
         AstNode::EqualityExpression(
             Box::new(operands.remove(0)),
-            "".to_string(), 
+            "".to_string(),
             Box::new(operands.remove(0)),
         )
     }
 }
 
+
 fn parse_relational_expression(lexer: &mut Lexer) -> AstNode {
     let mut operands = vec![parse_shift_expression(lexer)];
 
-    while lexer.peek() == Some('<')
-        || lexer.peek() == Some('>')
-        || lexer.peek() == Some("<=")
-        || lexer.peek() == Some(">=")
-    {
-        let operator = lexer.advance().unwrap().to_string(); 
+    while matches!(
+        lexer.peek(),
+        Some('<') | Some('>') | Some('=')
+    ) {
+        let operator = lexer.peek().unwrap_or_default().to_string();
 
-        
-        if operator.len() == 1 {
+        lexer.advance();
+
+        if matches!(lexer.peek(), Some('=') | Some('>')) {
             lexer.advance();
         }
 
@@ -617,7 +634,7 @@ fn parse_relational_expression(lexer: &mut Lexer) -> AstNode {
     } else {
         AstNode::RelationalExpression(
             Box::new(operands.remove(0)),
-            "".to_string(), 
+            "".to_string(),
             Box::new(operands.remove(0)),
         )
     }
@@ -626,11 +643,15 @@ fn parse_relational_expression(lexer: &mut Lexer) -> AstNode {
 fn parse_shift_expression(lexer: &mut Lexer) -> AstNode {
     let mut operands = vec![parse_additive_expression(lexer)];
 
-    while lexer.peek() == Some("<<") || lexer.peek() == Some(">>") {
-        let operator = lexer.advance().unwrap().to_string(); 
+    while matches!(
+        lexer.peek(),
+        Some('<') | Some('>')
+    ) {
+        let operator = lexer.peek().unwrap_or_default().to_string();
 
-        
-        if operator.len() == 2 {
+        lexer.advance();
+
+        if matches!(lexer.peek(), Some('<') | Some('>')) {
             lexer.advance();
         }
 
@@ -646,7 +667,7 @@ fn parse_shift_expression(lexer: &mut Lexer) -> AstNode {
     } else {
         AstNode::ShiftExpression(
             Box::new(operands.remove(0)),
-            "".to_string(), 
+            "".to_string(),
             Box::new(operands.remove(0)),
         )
     }
@@ -655,8 +676,13 @@ fn parse_shift_expression(lexer: &mut Lexer) -> AstNode {
 fn parse_additive_expression(lexer: &mut Lexer) -> AstNode {
     let mut operands = vec![parse_multiplicative_expression(lexer)];
 
-    while lexer.peek() == Some('+') || lexer.peek() == Some('-') {
-        let operator = lexer.advance().unwrap().to_string(); 
+    while matches!(
+        lexer.peek(),
+        Some('+') | Some('-')
+    ) {
+        let operator = lexer.peek().unwrap_or_default().to_string();
+
+        lexer.advance();
 
         operands.push(AstNode::AdditiveExpression(
             Box::new(operands.pop().unwrap()),
@@ -670,17 +696,23 @@ fn parse_additive_expression(lexer: &mut Lexer) -> AstNode {
     } else {
         AstNode::AdditiveExpression(
             Box::new(operands.remove(0)),
-            "".to_string(), 
+            "".to_string(),
             Box::new(operands.remove(0)),
         )
     }
 }
 
+
 fn parse_multiplicative_expression(lexer: &mut Lexer) -> AstNode {
     let mut operands = vec![parse_primary_expression(lexer)];
 
-    while lexer.peek() == Some('*') || lexer.peek() == Some('/') || lexer.peek() == Some('%') {
-        let operator = lexer.advance().unwrap().to_string(); 
+    while matches!(
+        lexer.peek(),
+        Some('*') | Some('/') | Some('%')
+    ) {
+        let operator = lexer.peek().unwrap_or_default().to_string();
+
+        lexer.advance();
 
         operands.push(AstNode::MultiplicativeExpression(
             Box::new(operands.pop().unwrap()),
@@ -694,7 +726,7 @@ fn parse_multiplicative_expression(lexer: &mut Lexer) -> AstNode {
     } else {
         AstNode::MultiplicativeExpression(
             Box::new(operands.remove(0)),
-            "".to_string(), 
+            "".to_string(),
             Box::new(operands.remove(0)),
         )
     }
@@ -702,11 +734,11 @@ fn parse_multiplicative_expression(lexer: &mut Lexer) -> AstNode {
 
 
 fn parse_primary_expression(lexer: &mut Lexer) -> AstNode {
-    if lexer.peek().is_alphabetic() {
+    if lexer.peek().unwrap().is_alphabetic() {
         parse_variable(lexer)
-    } else if lexer.peek().is_alphabetic() {
+    } else if lexer.peek().unwrap().is_alphabetic() {
         parse_variable(lexer)
-    } else if lexer.peek().is_digit(10) {
+    } else if lexer.peek().unwrap().is_digit(10) {
         parse_constant(lexer)
     } else if lexer.peek() == Some('"') {
         parse_string_literal(lexer)
@@ -726,7 +758,7 @@ fn parse_variable(lexer: &mut Lexer) -> AstNode {
 }
 
 fn parse_constant(lexer: &mut Lexer) -> AstNode {
-    if lexer.peek().is_digit(10) {
+    if lexer.peek().unwrap().is_digit(10) {
         AstNode::Constant(Constant::IntegerLiteral(parse_integer_literal(lexer)))
     } else if lexer.peek() == Some('.') {
         AstNode::Constant(Constant::FloatingPointLiteral(
@@ -754,7 +786,7 @@ fn parse_function_call(lexer: &mut Lexer) -> AstNode {
     assert_eq!(lexer.peek(), Some('('));
     lexer.advance();
     let argument_list = if lexer.peek() != Some(')') {
-        Some(Box::new(parse_argument_list(lexer)))
+        Some(parse_argument_list(lexer))
     } else {
         None
     };
