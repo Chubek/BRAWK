@@ -3,8 +3,11 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, BufWriter, Write};
+use std::fmt;
+use std::cmp::PartialEq;
+use std::clone::Clone;
 
-struct AwkIO {
+pub struct AwkIO {
     inputs: HashMap<String, Option<Box<dyn BufRead>>>,
     outputs: HashMap<String, Box<dyn Write>>,
     fields: Vec<String>,
@@ -59,7 +62,7 @@ impl AwkIO {
             };
 
             if !self.line.is_empty() {
-                self.fields = line
+                self.fields = self.line
                     .trim()
                     .split(delimiter)
                     .map(|s| s.to_string())
@@ -117,7 +120,7 @@ impl AwkIO {
                 }
 
                 self.fields = pattern
-                    .split(&total_buffer)
+                    .split(&read_buffer)
                     .map(|s| s.to_string())
                     .collect();
             }
@@ -134,5 +137,38 @@ impl AwkIO {
         } else {
             String::new()
         }
+    }
+}
+
+impl fmt::Display for AwkIO {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "Fields: {:?}", self.fields);
+        writeln!(f, "Line: {}", self.line)
+    }
+}
+
+impl PartialEq for AwkIO {
+    fn eq(&self, other: &Self) -> bool {
+        self.line == other.line
+    }
+}
+
+impl fmt::Debug for AwkIO {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AwkIO")
+            .field("fields", &self.fields)
+            .field("line", &self.line)
+            .finish()
+    }
+}
+
+impl Clone for AwkIO {
+    fn clone(&self) -> Self {
+        let mut new_instance = AwkIO::new();
+        
+        new_instance.fields = self.fields.clone();
+        new_instance.line = self.line.clone();
+        
+        new_instance
     }
 }
