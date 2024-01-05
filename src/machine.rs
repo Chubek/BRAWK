@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 
-
-
-use crate::value::Value;
 use crate::exit_err;
+use crate::value::Value;
 
 #[derive(Debug, Clone)]
 enum Instruction {
@@ -110,6 +108,82 @@ impl StackVM {
             sp: 0,
             environ: HashMap::new(),
         }
+    }
+
+    pub fn execute_rem(&mut self) {
+        // TODO: Implement boilerplate for REM
+    }
+
+    pub fn execute_exp(&mut self) {
+        // TODO: Implement boilerplate for EXP
+    }
+
+    pub fn execute_shr(&mut self) {
+        // TODO: Implement boilerplate for SHR
+    }
+
+    pub fn execute_shl(&mut self) {
+        // TODO: Implement boilerplate for SHL
+    }
+
+    pub fn execute_eq(&mut self) {
+        // TODO: Implement boilerplate for EQ
+    }
+
+    pub fn execute_ne(&mut self) {
+        // TODO: Implement boilerplate for NE
+    }
+
+    pub fn execute_gt(&mut self) {
+        // TODO: Implement boilerplate for GT
+    }
+
+    pub fn execute_ge(&mut self) {
+        // TODO: Implement boilerplate for GE
+    }
+
+    pub fn execute_lt(&mut self) {
+        // TODO: Implement boilerplate for LT
+    }
+
+    pub fn execute_le(&mut self) {
+        // TODO: Implement boilerplate for LE
+    }
+
+    pub fn execute_and(&mut self) {
+        // TODO: Implement boilerplate for AND
+    }
+
+    pub fn execute_or(&mut self) {
+        // TODO: Implement boilerplate for OR
+    }
+
+    pub fn execute_incr(&mut self) {
+        // TODO: Implement boilerplate for INCR
+    }
+
+    pub fn execute_decr(&mut self) {
+        // TODO: Implement boilerplate for DECR
+    }
+
+    pub fn execute_pos(&mut self) {
+        // TODO: Implement boilerplate for POS
+    }
+
+    pub fn execute_neg(&mut self) {
+        // TODO: Implement boilerplate for NEG
+    }
+
+    pub fn execute_begin(&mut self) {
+        // TODO: Implement boilerplate for BEGIN
+    }
+
+    pub fn execute_end(&mut self) {
+        // TODO: Implement boilerplate for END
+    }
+
+    pub fn execute_exit(&mut self) {
+        // TODO: Implement boilerplate for EXIT
     }
 
     pub fn exec_jump_if_false(&mut self) {
