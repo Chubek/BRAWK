@@ -2,10 +2,10 @@ use std::collections::HashMap;
 
 use std::io::prelude::*;
 use std::io::{Read, Write};
-use std::ops::Not;
+use std::ops::*;
 use std::process::{Command, Stdio};
 
-use std::f64::consts::{PI, E};
+use std::f64::consts::{E, PI};
 
 use rand::{Rng, SeedableRng};
 use regex::Regex;
@@ -641,6 +641,78 @@ impl Value {
     }
 }
 
+impl Add for Value {
+    type Output = Option<Value>;
+
+    fn add(self, other: Value) -> Self::Output {
+        self.add(&other)
+    }
+}
+
+impl Sub for Value {
+    type Output = Option<Value>;
+
+    fn sub(self, other: Value) -> Self::Output {
+        self.subtract(&other)
+    }
+}
+
+impl Mul for Value {
+    type Output = Option<Value>;
+
+    fn mul(self, other: Value) -> Self::Output {
+        self.multiply(&other)
+    }
+}
+
+impl Div for Value {
+    type Output = Option<Value>;
+
+    fn div(self, other: Value) -> Self::Output {
+        self.divide(&other)
+    }
+}
+
+impl BitAnd for Value {
+    type Output = Option<Value>;
+
+    fn bitand(self, other: Value) -> Self::Output {
+        self.bitwise_and(&other)
+    }
+}
+
+impl BitOr for Value {
+    type Output = Option<Value>;
+
+    fn bitor(self, other: Value) -> Self::Output {
+        self.bitwise_or(&other)
+    }
+}
+
+impl BitXor for Value {
+    type Output = Option<Value>;
+
+    fn bitxor(self, other: Value) -> Self::Output {
+        self.bitwise_xor(&other)
+    }
+}
+
+impl Shl<i64> for Value {
+    type Output = Option<Value>;
+
+    fn shl(self, other: i64) -> Self::Output {
+        self.shift_left(other)
+    }
+}
+
+impl Shr<i64> for Value {
+    type Output = Option<Value>;
+
+    fn shr(self, other: i64) -> Self::Output {
+        self.shift_right(other)
+    }
+}
+
 impl Not for Value {
     type Output = Self;
 
@@ -654,6 +726,48 @@ impl Not for Value {
                     self
                 );
             }
+        }
+    }
+}
+
+impl Neg for Value {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        match self {
+            Value::Number(n) => Value::Number(-n),
+            Value::Float(f) => Value::Float(-f),
+            _ => {
+                panic!(
+                    "Cannot apply unary negation to non-numeric value: {:?}",
+                    self
+                );
+            }
+        }
+    }
+}
+
+impl Pos for Value {
+    type Output = Self;
+
+    fn pos(self) -> Self::Output {
+        self
+    }
+}
+
+impl PartialOrd for Value {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Value {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            (Value::Number(a), Value::Number(b)) => a.cmp(b),
+            (Value::Float(a), Value::Float(b)) => a.partial_cmp(b).unwrap_or(Ordering::Equal),
+            (Value::StringLiteral(a), Value::StringLiteral(b)) => a.cmp(b),
+            _ => Ordering::Equal,
         }
     }
 }
