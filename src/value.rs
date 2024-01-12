@@ -5,7 +5,10 @@ use std::io::{Read, Write};
 use std::ops::*;
 use std::process::{Command, Stdio};
 
+use std::cmp::*;
+
 use std::f64::consts::{E, PI};
+
 
 use rand::{Rng, SeedableRng};
 use regex::Regex;
@@ -131,6 +134,20 @@ impl Value {
             (Value::Float(a), Value::Float(b)) => Some(Value::Bool(a == b)),
             (Value::StringLiteral(a), Value::StringLiteral(b)) => Some(Value::Bool(a == b)),
             _ => Some(Value::Bool(false)),
+        }
+    }
+
+    pub fn shift_left(&self, other: &Value) -> Option<Value> {
+        match (self, other) {
+            (Value::Number(a), Value::Number(b)) => Some(Value::Number(a << b)),
+            _ => None
+        }
+    }
+
+    pub fn shift_right(&self, other: &Value) -> Option<Value> {
+        match (self, other) {
+            (Value::Number(a), Value::Number(b)) => Some(Value::Number(a >> b)),
+            _ => None,
         }
     }
 
@@ -645,7 +662,7 @@ impl Add for Value {
     type Output = Option<Value>;
 
     fn add(self, other: Value) -> Self::Output {
-        self.add(&other)
+        self.add(other)
     }
 }
 
@@ -697,19 +714,19 @@ impl BitXor for Value {
     }
 }
 
-impl Shl<i64> for Value {
+impl Shl<Value> for Value {
     type Output = Option<Value>;
 
-    fn shl(self, other: i64) -> Self::Output {
-        self.shift_left(other)
+    fn shl(self, other: Value) -> Self::Output {
+        self.shift_left(&other)
     }
 }
 
-impl Shr<i64> for Value {
+impl Shr<Value> for Value {
     type Output = Option<Value>;
 
-    fn shr(self, other: i64) -> Self::Output {
-        self.shift_right(other)
+    fn shr(self, other: Value) -> Self::Output {
+        self.shift_right(&other)
     }
 }
 
@@ -747,14 +764,6 @@ impl Neg for Value {
     }
 }
 
-impl Pos for Value {
-    type Output = Self;
-
-    fn pos(self) -> Self::Output {
-        self
-    }
-}
-
 impl PartialOrd for Value {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
@@ -771,3 +780,5 @@ impl Ord for Value {
         }
     }
 }
+
+impl Eq for Value {}
