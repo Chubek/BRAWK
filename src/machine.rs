@@ -20,7 +20,7 @@ enum Instruction {
     Add,
     Sub,
     Mul,
-    Rem,
+    Mod,
     Exp,
     Div,
     Shr,
@@ -110,80 +110,187 @@ impl StackVM {
         }
     }
 
-    pub fn execute_rem(&mut self) {
-        // TODO: Implement boilerplate for REM
+    pub fn exec_add(&mut self) {
+        if self.stack.len() < 2 {
+            exit_err!("Not enough operands on the stack for ADD");
+        }
+
+        let (left, right) = (self.stack.pop(), self.stack.pop());
+        self.stack.push(left + right);
+    }
+
+    pub fn exec_sub(&mut self) {
+        if self.stack.len() < 2 {
+            exit_err!("Not enough operands on the stack for SUB");
+        }
+
+        let (left, right) = (self.stack.pop(), self.stack.pop());
+        self.stack.push(left - right);
+    }
+
+    pub fn exec_mul(&mut self) {
+        if self.stack.len() < 2 {
+            exit_err!("Not enough operands on the stack for MUL");
+        }
+
+        let (left, right) = (self.stack.pop(), self.stack.pop());
+        self.stack.push(left * right);
+    }
+
+    pub fn execute_div(&mut self) {
+        if self.stack.len() < 2 {
+            exit_err!("Not enough operands on the stack for DIV");
+        }
+
+        let (left, right) = (self.stack.pop(), self.stack.pop());
+
+        // Ensure that division by zero is handled
+        if right == 0 {
+            exit_err!("Division by zero");
+        }
+
+        self.stack.push(left / right);
+    }
+
+    pub fn execute_mod(&mut self) {
+        if self.stack.len() < 2 {
+            exit_err!("Not enough operands on the stack for MOD");
+        }
+
+        let (left, right) = (self.stack.pop(), self.stack.pop());
+
+        if right == 0 {
+            exit_err!("Modulo by zero");
+        }
+
+        self.stack.push(left % right);
     }
 
     pub fn execute_exp(&mut self) {
-        // TODO: Implement boilerplate for EXP
+        if self.stack.len() < 2 {
+            exit_err!("Not enough operands on the stack for EXP");
+        }
+
+        let (base, exponent) = (self.stack.pop(), self.stack.pop());
+        self.stack.push(base.pow(exponent));
     }
 
     pub fn execute_shr(&mut self) {
-        // TODO: Implement boilerplate for SHR
+        if self.stack.len() < 2 {
+            exit_err!("Not enough operands on the stack for SHR");
+        }
+
+        let (value, shift) = (self.stack.pop(), self.stack.pop());
+        self.stack.push(value >> shift);
     }
 
     pub fn execute_shl(&mut self) {
-        // TODO: Implement boilerplate for SHL
+        if self.stack.len() < 2 {
+            exit_err!("Not enough operands on the stack for SHL");
+        }
+
+        let (value, shift) = (self.stack.pop(), self.stack.pop());
+        self.stack.push(value << shift);
     }
 
     pub fn execute_eq(&mut self) {
-        // TODO: Implement boilerplate for EQ
+        if self.stack.len() < 2 {
+            exit_err!("Not enough operands on the stack for EQ");
+        }
+
+        let (left, right) = (self.stack.pop(), self.stack.pop());
+        self.stack.push(left == right);
     }
 
     pub fn execute_ne(&mut self) {
-        // TODO: Implement boilerplate for NE
+        if self.stack.len() < 2 {
+            exit_err!("Not enough operands on the stack for NE");
+        }
+
+        let (left, right) = (self.stack.pop(), self.stack.pop());
+        self.stack.push(left != right);
     }
 
     pub fn execute_gt(&mut self) {
-        // TODO: Implement boilerplate for GT
+        if self.stack.len() < 2 {
+            exit_err!("Not enough operands on the stack for GT");
+        }
+
+        let (left, right) = (self.stack.pop(), self.stack.pop());
+        self.stack.push(left > right);
     }
 
     pub fn execute_ge(&mut self) {
-        // TODO: Implement boilerplate for GE
+        if self.stack.len() < 2 {
+            exit_err!("Not enough operands on the stack for GE");
+        }
+
+        let (left, right) = (self.stack.pop(), self.stack.pop());
+        self.stack.push(left >= right);
     }
 
     pub fn execute_lt(&mut self) {
-        // TODO: Implement boilerplate for LT
+        if self.stack.len() < 2 {
+            exit_err!("Not enough operands on the stack for LT");
+        }
+
+        let (left, right) = (self.stack.pop(), self.stack.pop());
+        self.stack.push(left < right);
     }
 
     pub fn execute_le(&mut self) {
-        // TODO: Implement boilerplate for LE
+        if self.stack.len() < 2 {
+            exit_err!("Not enough operands on the stack for LE");
+        }
+
+        let (left, right) = (self.stack.pop(), self.stack.pop());
+        self.stack.push(left <= right);
     }
 
     pub fn execute_and(&mut self) {
-        // TODO: Implement boilerplate for AND
+        if self.stack.len() < 2 {
+            exit_err!("Not enough operands on the stack for AND");
+        }
+
+        let (left, right) = (self.stack.pop(), self.stack.pop());
+        self.stack.push(left & right);
     }
 
     pub fn execute_or(&mut self) {
-        // TODO: Implement boilerplate for OR
+        if self.stack.len() < 2 {
+            exit_err!("Not enough operands on the stack for OR");
+        }
+
+        let (left, right) = (self.stack.pop(), self.stack.pop());
+        self.stack.push(left | right);
     }
 
     pub fn execute_incr(&mut self) {
-        // TODO: Implement boilerplate for INCR
+        // TODO: Implement INCR
     }
 
     pub fn execute_decr(&mut self) {
-        // TODO: Implement boilerplate for DECR
+        // TODO: Implement DECR
     }
 
     pub fn execute_pos(&mut self) {
-        // TODO: Implement boilerplate for POS
+        // TODO: Implement POS
     }
 
     pub fn execute_neg(&mut self) {
-        // TODO: Implement boilerplate for NEG
+        // TODO: Implement NEG
     }
 
     pub fn execute_begin(&mut self) {
-        // TODO: Implement boilerplate for BEGIN
+        // TODO: Implement BEGIN
     }
 
     pub fn execute_end(&mut self) {
-        // TODO: Implement boilerplate for END
+        // TODO: Implement END
     }
 
     pub fn execute_exit(&mut self) {
-        // TODO: Implement boilerplate for EXIT
+        // TODO: Implement EXIT
     }
 
     pub fn exec_jump_if_false(&mut self) {
