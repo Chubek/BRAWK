@@ -92,7 +92,7 @@ enum Instruction {
 
 #[derive(Debug, Clone)]
 struct StackVM {
-    stack: Vec<Value>,
+    stack: Vec<Option<Value>>,
     program: Vec<Instruction>,
     environ: HashMap<String, Option<Value>>,
     pc: usize,
@@ -115,7 +115,7 @@ impl StackVM {
             exit_err!("Not enough operands on the stack for ADD");
         }
 
-        let (left, right) = (self.stack.pop(), self.stack.pop());
+        let (left, right) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
         self.stack.push(left + right);
     }
 
@@ -124,7 +124,7 @@ impl StackVM {
             exit_err!("Not enough operands on the stack for SUB");
         }
 
-        let (left, right) = (self.stack.pop(), self.stack.pop());
+        let (left, right) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
         self.stack.push(left - right);
     }
 
@@ -133,7 +133,7 @@ impl StackVM {
             exit_err!("Not enough operands on the stack for MUL");
         }
 
-        let (left, right) = (self.stack.pop(), self.stack.pop());
+        let (left, right) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
         self.stack.push(left * right);
     }
 
@@ -142,7 +142,7 @@ impl StackVM {
             exit_err!("Not enough operands on the stack for DIV");
         }
 
-        let (left, right) = (self.stack.pop(), self.stack.pop());
+        let (left, right) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
 
         // Ensure that division by zero is handled
         if right == 0 {
@@ -157,7 +157,7 @@ impl StackVM {
             exit_err!("Not enough operands on the stack for MOD");
         }
 
-        let (left, right) = (self.stack.pop(), self.stack.pop());
+        let (left, right) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
 
         if right == 0 {
             exit_err!("Modulo by zero");
@@ -171,7 +171,7 @@ impl StackVM {
             exit_err!("Not enough operands on the stack for EXP");
         }
 
-        let (base, exponent) = (self.stack.pop(), self.stack.pop());
+        let (base, exponent) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
         self.stack.push(base.pow(exponent));
     }
 
@@ -180,7 +180,7 @@ impl StackVM {
             exit_err!("Not enough operands on the stack for SHR");
         }
 
-        let (value, shift) = (self.stack.pop(), self.stack.pop());
+        let (value, shift) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
         self.stack.push(value >> shift);
     }
 
@@ -189,7 +189,7 @@ impl StackVM {
             exit_err!("Not enough operands on the stack for SHL");
         }
 
-        let (value, shift) = (self.stack.pop(), self.stack.pop());
+        let (value, shift) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
         self.stack.push(value << shift);
     }
 
@@ -198,8 +198,8 @@ impl StackVM {
             exit_err!("Not enough operands on the stack for EQ");
         }
 
-        let (left, right) = (self.stack.pop(), self.stack.pop());
-        self.stack.push(left == right);
+        let (left, right) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
+        self.stack.push(Value::Bool(left == right));
     }
 
     pub fn execute_ne(&mut self) {
@@ -207,8 +207,8 @@ impl StackVM {
             exit_err!("Not enough operands on the stack for NE");
         }
 
-        let (left, right) = (self.stack.pop(), self.stack.pop());
-        self.stack.push(left != right);
+        let (left, right) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
+        self.stack.push(Value::Bool(left != right));
     }
 
     pub fn execute_gt(&mut self) {
@@ -216,8 +216,8 @@ impl StackVM {
             exit_err!("Not enough operands on the stack for GT");
         }
 
-        let (left, right) = (self.stack.pop(), self.stack.pop());
-        self.stack.push(left > right);
+        let (left, right) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
+        self.stack.push(Value::Bool(left > right));
     }
 
     pub fn execute_ge(&mut self) {
@@ -225,8 +225,8 @@ impl StackVM {
             exit_err!("Not enough operands on the stack for GE");
         }
 
-        let (left, right) = (self.stack.pop(), self.stack.pop());
-        self.stack.push(left >= right);
+        let (left, right) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
+        self.stack.push(Value::Bool(left >= right));
     }
 
     pub fn execute_lt(&mut self) {
@@ -234,8 +234,8 @@ impl StackVM {
             exit_err!("Not enough operands on the stack for LT");
         }
 
-        let (left, right) = (self.stack.pop(), self.stack.pop());
-        self.stack.push(left < right);
+        let (left, right) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
+        self.stack.push(Value::Bool(left < right));
     }
 
     pub fn execute_le(&mut self) {
@@ -243,8 +243,8 @@ impl StackVM {
             exit_err!("Not enough operands on the stack for LE");
         }
 
-        let (left, right) = (self.stack.pop(), self.stack.pop());
-        self.stack.push(left <= right);
+        let (left, right) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
+        self.stack.push(Value::Bool(left <= right));
     }
 
     pub fn execute_and(&mut self) {
@@ -252,8 +252,8 @@ impl StackVM {
             exit_err!("Not enough operands on the stack for AND");
         }
 
-        let (left, right) = (self.stack.pop(), self.stack.pop());
-        self.stack.push(left & right);
+        let (left, right) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
+        self.stack.push(Value::Bool(left & right));
     }
 
     pub fn execute_or(&mut self) {
@@ -261,24 +261,47 @@ impl StackVM {
             exit_err!("Not enough operands on the stack for OR");
         }
 
-        let (left, right) = (self.stack.pop(), self.stack.pop());
-        self.stack.push(left | right);
+        let (left, right) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
+        self.stack.push(Value::Bool(left | right));
     }
 
     pub fn execute_incr(&mut self) {
-        // TODO: Implement INCR
+        if self.stack.len() < 1 {
+            exit_err!("Not enough operands on the stack for INCR");
+        }
+
+        let operand = self.stack.pop();
+        self.stack.push(operand.increment());
     }
 
     pub fn execute_decr(&mut self) {
-        // TODO: Implement DECR
+        if self.stack.len() < 1 {
+            exit_err!("Not enough operands on the stack for INCR");
+        }
+
+        let operand = self.stack.pop();
+        self.stack.push(operand.decerement());
     }
 
     pub fn execute_pos(&mut self) {
-        // TODO: Implement POS
+        if self.stack.len() < 1 {
+            exit_err!("Not enough operands on the stack for INCR");
+        }
+
+        let operand = self.stack.pop();
+        self.stack.push(operand);
+
     }
 
     pub fn execute_neg(&mut self) {
-        // TODO: Implement NEG
+        if self.stack.len() < 1 {
+            exit_err!("Not enough operands on the stack for INCR");
+        }
+
+        let operand = self.stack.pop();
+        self.stack.push(-operand);
+
+
     }
 
     pub fn execute_begin(&mut self) {
@@ -290,7 +313,12 @@ impl StackVM {
     }
 
     pub fn execute_exit(&mut self) {
-        // TODO: Implement EXIT
+        if self.stack.len() > 0 {
+            let exit_reason = self.stack.pop().unwrap();
+            exit_reason.exit();
+        } else {
+            std::process::exit(1);
+        }
     }
 
     pub fn exec_jump_if_false(&mut self) {
@@ -333,7 +361,7 @@ impl StackVM {
         }
 
         if let (Some(Value::Identifier(variable_name)), Some(value_to_store)) =
-            (self.stack.pop(), self.stack.pop())
+            (self.stack.pop().unwrap(), self.stack.pop().unwrap())
         {
             self.environ.insert(variable_name, Some(value_to_store));
         } else {
@@ -372,7 +400,7 @@ impl StackVM {
         }
 
         if let (Some(Value::AssociativeIdentifier(ref array_id, ref idx)), Some(value_to_store)) =
-            (self.stack.pop(), self.stack.pop())
+            (self.stack.pop().unwrap(), self.stack.pop().unwrap())
         {
             let mut key = array_id.clone();
             key.push_str(idx);
