@@ -656,6 +656,12 @@ impl Value {
             _ => None,
         }
     }
+
+    pub fn exit(&self) {
+        if let Value::Number(*n) = self {
+            std::process::exit(n);
+        }
+    }
 }
 
 impl Add for Value {
